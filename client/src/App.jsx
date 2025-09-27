@@ -2,7 +2,13 @@ import React, { useState, useEffect } from "react";
 import io from "socket.io-client";
 import "./App.css";
 
-const socket = io("http://localhost:4000");
+const socket = io(
+  process.env.NODE_ENV === "production"
+    ? window.location.origin  // 本番URLを自動取得
+    : "http://localhost:4000"  // ローカル開発用
+);
+
+export default socket;
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);

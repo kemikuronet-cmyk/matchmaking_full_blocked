@@ -1,140 +1,139 @@
-const io = require('socket.io')(4000, { cors: { origin: '*' } });
+// server/server.js
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
 
-let users = [];
-let matchesEnabled = false;
-let activeDesks = {};
-const desks = Array.from({ length: 999 }, (_, i) => (i + 1).toString().padStart(3, '0'));
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 
-// --- マッチング関数 ---
-function tryMatch(me) {
-  if (!me.searching || !matchesEnabled) return;
-  const waitingUsers = users.filter(u =>
-    u.id !== me.id &&
-    u.searching &&
-    !me.history.some(h => h.opponent === u.name) &&
-    !Object.values(activeDesks).flat().includes(u.id)
-  );
-  if (waitingUsers.length === 0) return;
+const PORT = process.env.PORT || 10000;
 
-  const opponent = waitingUsers[Math.floor(Math.random() * waitingUsers.length)];
-  const deskNum = desks.find(d => !(d in activeDesks));
-  if (!deskNum) return;
+// -----------------------------
+// データ管理
+// -----------------------------
+let nextUserId = 1;
+const users = {}; // { socketId: { id, name, wins, history: [], searching, opponentId } }
+const matches = {}; // 卓番号: { player1, player2, startTime }
+let nextTableNumber = 1;
+const MAX_TABLE_NUMBER = 999;
 
-  activeDesks[deskNum] = [me.id, opponent.id];
+let isMatchingEnabled = false; // 管理者によるマッチング制御
 
-  io.to(me.socketId).emit('matched', { opponent: { name: opponent.name, id: opponent.id }, deskNum });
-  io.to(opponent.socketId).emit('matched', { opponent: { name: me.name, id: me.id }, deskNum });
+// -----------------------------
+// 静的ファイル配信
+// -----------------------------
+app.use(express.static(path.join(__dirname, '../client/dist')));
 
-  me.searching = false;
-  opponent.searching = false;
-}
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+});
 
-// --- Socket.io ---
-io.on('connection', socket => {
+// -----------------------------
+// Socket.io イベント
+// -----------------------------
+io.on('connection', (socket) => {
+  console.log('ユーザー接続:', socket.id);
 
-  // ユーザーログイン
+  // ログイン
   socket.on('login', ({ name }) => {
-    const userId = (users.length + 1).toString().padStart(3, '0');
-    const user = { id: userId, name, socketId: socket.id, points: 0, history: [], searching: false };
-    users.push(user);
-    socket.emit('login_ok', user);
-    socket.emit('match_status', { enabled: matchesEnabled });
-  });
-
-  // 対戦相手探す
-  socket.on('find_opponent', () => {
-    const me = users.find(u => u.socketId === socket.id);
-    if (!me) return;
-    me.searching = true;
-    tryMatch(me);
-  });
-
-  socket.on('cancel_find', () => {
-    const me = users.find(u => u.socketId === socket.id);
-    if (me) me.searching = false;
-  });
-
-  // 勝利報告
-  socket.on('report_win', () => {
-    const me = users.find(u => u.socketId === socket.id);
-    if (!me) return;
-
-    const deskNum = Object.keys(activeDesks).find(d => activeDesks[d].includes(me.id));
-    if (!deskNum) return;
-
-    const [id1, id2] = activeDesks[deskNum];
-    const opponent = users.find(u => u.id === (id1 === me.id ? id2 : id1));
-
-    const now = new Date().toLocaleTimeString();
-    me.points += 1;
-    me.history.push({ opponent: opponent.name, result: '勝ち', startTime: now, endTime: now });
-    opponent.history.push({ opponent: me.name, result: '負け', startTime: now, endTime: now });
-
-    delete activeDesks[deskNum];
-
-    io.to(me.socketId).emit('return_to_menu');
-    io.to(opponent.socketId).emit('return_to_menu');
-  });
-
-  // 対戦履歴
-  socket.on('request_history', () => {
-    const me = users.find(u => u.socketId === socket.id);
-    if (!me) return;
-    socket.emit('history', me.history);
-  });
-
-  // ログアウト
-  socket.on('logout', () => {
-    users = users.filter(u => u.socketId !== socket.id);
-    for (const desk in activeDesks) {
-      if (activeDesks[desk].includes(socket.id)) {
-        delete activeDesks[desk];
-      }
+    if (!users[socket.id]) {
+      const id = String(nextUserId).padStart(3, '0');
+      nextUserId++;
+      users[socket.id] = { id, name, wins: 0, history: [], searching: false, opponentId: null };
+      socket.emit('login_success', { id, name, wins: 0 });
+      console.log(`ログイン: ${name} (${id})`);
     }
   });
 
-  // 管理者ログイン
-  socket.on('admin_login', ({ password }) => {
-    if (password === '9396') {
-      socket.admin = true;
-      socket.emit('admin_ok');
-    } else socket.emit('admin_fail');
-  });
+  // 対戦相手を探す
+  socket.on('find_opponent', () => {
+    if (!isMatchingEnabled) return;
+    const user = users[socket.id];
+    if (!user || user.searching) return;
 
-  socket.on('admin_toggle_match', ({ enable }) => {
-    if (!socket.admin) return;
-    matchesEnabled = enable;
-    io.emit(enable ? 'match_enabled' : 'match_disabled');
-    users.forEach(u => {
-      const s = io.sockets.sockets.get(u.socketId);
-      if (s) s.emit('match_status', { enabled: matchesEnabled });
-    });
-  });
+    user.searching = true;
 
-  socket.on('admin_view_users', () => {
-    if (!socket.admin) return;
-    const list = users.map(u => ({ id: u.id, name: u.name, history: u.history }));
-    socket.emit('admin_user_list', list);
-  });
-
-  socket.on('admin_draw_lots', ({ count }) => {
-    if (!socket.admin) return;
-    const eligible = users.filter(u => u.history.length >= 5);
-    const shuffled = eligible.sort(() => 0.5 - Math.random());
-    socket.emit('admin_draw_result', shuffled.slice(0, count));
-  });
-
-  // --- 新機能: 全ユーザー一括ログアウト ---
-  socket.on('admin_logout_all', () => {
-    if (!socket.admin) return;
-
-    users.forEach(u => {
-      const s = io.sockets.sockets.get(u.socketId);
-      if (s) s.emit('return_to_menu');
+    // マッチング対象: searching=true かつ opponentId=null かつ 過去に対戦していないユーザー
+    const candidates = Object.entries(users).filter(([sid, u]) => {
+      return u.searching && u.opponentId === null && sid !== socket.id &&
+             !user.history.find(h => h.opponentId === u.id);
     });
 
-    users = [];
-    activeDesks = {};
+    if (candidates.length === 0) return; // 待機
+
+    // ランダム選択
+    const randomIndex = Math.floor(Math.random() * candidates.length);
+    const [opponentSocketId, opponent] = candidates[randomIndex];
+
+    // 卓番号割り当て
+    let tableNum = String(nextTableNumber).padStart(3, '0');
+    nextTableNumber++;
+    if (nextTableNumber > MAX_TABLE_NUMBER) nextTableNumber = 1;
+
+    // マッチング
+    user.opponentId = opponent.id;
+    opponent.opponentId = user.id;
+
+    const startTime = new Date();
+    matches[tableNum] = { player1: socket.id, player2: opponentSocketId, startTime };
+
+    // 両者に通知
+    socket.emit('matched', { opponentName: opponent.name, tableNum });
+    io.to(opponentSocketId).emit('matched', { opponentName: user.name, tableNum });
   });
 
+  // マッチングキャンセル
+  socket.on('cancel_find', () => {
+    const user = users[socket.id];
+    if (user) user.searching = false;
+  });
+
+  // 勝利報告
+  socket.on('report_win', ({ opponentId }) => {
+    const user = users[socket.id];
+    const opponent = Object.values(users).find(u => u.id === opponentId);
+    if (!user || !opponent) return;
+
+    const now = new Date();
+    user.wins++;
+    user.history.push({ opponentId: opponent.id, result: '勝ち', startTime: now, endTime: now });
+    opponent.history.push({ opponentId: user.id, result: '負け', startTime: now, endTime: now });
+
+    // 両者をメニュー画面に戻す
+    user.opponentId = null;
+    opponent.opponentId = null;
+    user.searching = false;
+    opponent.searching = false;
+
+    socket.emit('match_ended');
+    io.to(Object.keys(users).find(k => users[k].id === opponentId)).emit('match_ended');
+  });
+
+  // 管理者用: マッチング開始
+  socket.on('admin_start_matching', () => {
+    isMatchingEnabled = true;
+    io.emit('matching_status', { enabled: true });
+  });
+
+  // 管理者用: マッチング終了
+  socket.on('admin_stop_matching', () => {
+    isMatchingEnabled = false;
+    io.emit('matching_status', { enabled: false });
+  });
+
+  // 切断時
+  socket.on('disconnect', () => {
+    console.log('ユーザー切断:', socket.id);
+    const user = users[socket.id];
+    if (user) {
+      delete users[socket.id];
+    }
+  });
 });
+
+// -----------------------------
+// サーバー起動
+// -----------------------------
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
