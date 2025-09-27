@@ -31,47 +31,48 @@ let matchEnabled = false;
 io.on("connection", (socket) => {
   console.log("新しいクライアント接続:", socket.id);
 
+  // 新規ユーザーにマッチング状態を送信
+  socket.emit("match_status", { enabled: matchEnabled });
+
   // ログイン
   socket.on("login", ({ name }) => {
-    const user = { id: socket.id, name, history: [] };
+    const user = { id: socket.id, name, history: [], recentOpponents: [] };
     users.push(user);
     socket.emit("login_ok", user);
     console.log(`${name} がログイン`);
   });
 
-  // --- 対戦相手探す ---
+  // マッチング操作
   socket.on("find_opponent", () => {
     if (!matchEnabled) return;
 
     const user = users.find(u => u.id === socket.id);
     if (!user) return;
 
-    // 一度でも対戦した相手IDリスト
-    const playedOpponentIds = user.history.map(h => {
-      const opponent = users.find(u => u.name === h.opponent);
-      return opponent ? opponent.id : null;
-    }).filter(Boolean);
-
-    // マッチング候補は自分以外・過去に対戦なし・マッチ中でない
+    // まだマッチしていないユーザーの中から、直近対戦相手以外を選ぶ
     const available = users.filter(u =>
       u.id !== socket.id &&
-      !playedOpponentIds.includes(u.id) &&
-      !matches.some(m => m.includes(u.id))
+      !matches.some(m => m.includes(u.id)) &&
+      !user.recentOpponents.includes(u.id)
     );
 
-    if (available.length === 0) return;
+    if (available.length > 0) {
+      const opponent = available[0];
+      const match = [socket.id, opponent.id];
+      matches.push(match);
+      const deskNum = matches.length;
 
-    const opponent = available[0];
-    const match = [socket.id, opponent.id];
-    matches.push(match);
-    const deskNum = matches.length;
+      // recentOpponents に記録
+      user.recentOpponents.push(opponent.id);
+      opponent.recentOpponents.push(user.id);
 
-    io.to(socket.id).emit("matched", { opponent, deskNum });
-    io.to(opponent.id).emit("matched", { opponent: user, deskNum });
+      io.to(socket.id).emit("matched", { opponent, deskNum });
+      io.to(opponent.id).emit("matched", { opponent: user, deskNum });
+    }
   });
 
   socket.on("cancel_find", () => {
-    // シンプルに何もしない
+    // シンプルにキャンセルだけ
   });
 
   // 勝利報告
@@ -88,11 +89,10 @@ io.on("connection", (socket) => {
       user.history.push({ opponent: opponent.name, result: "win", startTime: now, endTime: now });
       opponent.history.push({ opponent: user.name, result: "lose", startTime: now, endTime: now });
 
-      // 両者をメニュー画面へ戻す
       socket.emit("return_to_menu");
       io.to(opponentId).emit("return_to_menu");
 
-      // マッチングリストから削除
+      // マッチ解消
       matches = matches.filter(m => m !== match);
     }
   });
@@ -126,9 +126,9 @@ io.on("connection", (socket) => {
   });
 
   socket.on("admin_logout_all", () => {
-    users.forEach(u => io.to(u.id).emit("return_to_menu"));
     users = [];
     matches = [];
+    io.emit("return_to_menu");
   });
 
   // ログアウト
