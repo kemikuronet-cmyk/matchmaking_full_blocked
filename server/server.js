@@ -1,3 +1,4 @@
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -125,11 +126,17 @@ io.on("connection", (socket) => {
     socket.emit("admin_draw_result", winners);
   });
 
-  socket.on("admin_logout_all", () => {
-    users = [];
-    matches = [];
-    io.emit("return_to_menu");
-  });
+ // 管理者操作: 全ユーザーを強制ログアウト
+socket.on("admin_logout_all", () => {
+  // 全ユーザーにログアウト指示を送信
+  io.emit("return_to_menu");
+
+  // サーバー側のユーザーデータをリセット
+  users = [];
+  matches = [];
+  console.log("全ユーザーを強制ログアウトしました");
+});
+
 
   // ログアウト
   socket.on("logout", () => {
