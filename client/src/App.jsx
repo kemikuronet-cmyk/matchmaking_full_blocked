@@ -1,13 +1,12 @@
-// src/App.jsx
 import React, { useState, useEffect } from "react";
-import { io } from "socket.io-client";
+import io from "socket.io-client";
 import "./App.css";
 
-// --- Socket.io 初期化 ---
-export const socket = io(
+// Socket を App 内で定義
+const socket = io(
   process.env.NODE_ENV === "production"
-    ? window.location.origin // 本番URLを自動取得
-    : "http://localhost:4000" // ローカル開発用
+    ? window.location.origin
+    : "http://localhost:4000"
 );
 
 function App() {
@@ -28,6 +27,7 @@ function App() {
 
   // --- Socket イベント ---
   useEffect(() => {
+    // 自動ログイン復元
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       const u = JSON.parse(savedUser);
@@ -57,13 +57,14 @@ function App() {
       setShowHistory(true);
     });
 
-    socket.on("match_status", ({ enabled }) => {
-      setMatchEnabled(enabled);
-    });
-
+    socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
     socket.on("admin_ok", () => setAdminMode(true));
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => setDrawResult(res));
+
+    return () => {
+      socket.off();
+    };
   }, []);
 
   // --- ログイン ---
@@ -89,10 +90,8 @@ function App() {
     socket.emit("report_win");
   };
 
-  // --- 対戦履歴 ---
-  const handleShowHistory = () => {
-    socket.emit("request_history");
-  };
+  // --- 対戦履歴表示 ---
+  const handleShowHistory = () => socket.emit("request_history");
 
   // --- ログアウト ---
   const handleLogout = () => {
@@ -103,21 +102,10 @@ function App() {
   };
 
   // --- 管理者ログイン ---
-  const handleAdminLogin = () => {
-    socket.emit("admin_login", { password: adminPassword });
-  };
-
-  const handleToggleMatch = (enable) => {
-    socket.emit("admin_toggle_match", { enable });
-  };
-
-  const handleViewUsers = () => {
-    socket.emit("admin_view_users");
-  };
-
-  const handleDrawLots = () => {
-    socket.emit("admin_draw_lots", { count: drawCount });
-  };
+  const handleAdminLogin = () => socket.emit("admin_login", { password: adminPassword });
+  const handleToggleMatch = (enable) => socket.emit("admin_toggle_match", { enable });
+  const handleViewUsers = () => socket.emit("admin_view_users");
+  const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
 
   // --- レンダリング ---
   if (!loggedIn && !adminMode) {
@@ -154,32 +142,25 @@ function App() {
             <button onClick={() => handleToggleMatch(false)}>マッチング終了</button>
             <div>{matchEnabled ? "マッチング状態" : "マッチング受付時間外"}</div>
           </div>
+
           <div className="admin-section">
             <h3>ユーザー管理</h3>
             <button onClick={handleViewUsers}>ユーザー一覧表示</button>
-            <button onClick={() => socket.emit("admin_logout_all")}>全ユーザーをログアウト</button>
+            <button onClick={() => socket.emit('admin_logout_all')}>全ユーザーをログアウト</button>
             <ul>
-              {usersList.map((u) => (
-                <li key={u.id}>
-                  {u.id} | {u.name} | 対戦数: {u.history.length}
-                </li>
+              {usersList.map(u => (
+                <li key={u.id}>{u.id} | {u.name} | 対戦数: {u.history.length}</li>
               ))}
             </ul>
           </div>
+
           <div className="admin-section">
             <h3>抽選</h3>
-            <input
-              type="number"
-              min="1"
-              value={drawCount}
-              onChange={(e) => setDrawCount(Number(e.target.value))}
-            />
+            <input type="number" min="1" value={drawCount} onChange={(e) => setDrawCount(Number(e.target.value))}/>
             <button onClick={handleDrawLots}>抽選する</button>
             <ul>
-              {drawResult.map((u) => (
-                <li key={u.id}>
-                  {u.id} | {u.name}
-                </li>
+              {drawResult.map(u => (
+                <li key={u.id}>{u.id} | {u.name}</li>
               ))}
             </ul>
           </div>
@@ -190,7 +171,7 @@ function App() {
 
   return (
     <div className="app">
-      <div className="header">{user.name}</div>
+      <div className="header">{user?.name}</div>
 
       {!opponent && (
         <div className="menu-screen">
