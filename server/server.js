@@ -1,107 +1,139 @@
+// server/server.js
 const express = require('express');
-const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 4000;
-
-// ===== React 静的ファイル配信 =====
-const clientDistPath = path.join(__dirname, '../client/dist');
-app.use(express.static(clientDistPath));
-
-// React Router などを使う場合、全ルートを index.html にフォールバック
-app.get('*', (req, res) => {
-  res.sendFile(path.join(clientDistPath, 'index.html'));
-});
-
-// ===== HTTP サーバー & Socket.io =====
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*', // 必要に応じてアクセス制限
-    methods: ['GET', 'POST']
-  }
+const io = new Server(server);
+
+const PORT = process.env.PORT || 10000;
+
+// -----------------------------
+// データ管理
+// -----------------------------
+let nextUserId = 1;
+const users = {}; // { socketId: { id, name, wins, history: [], searching, opponentId } }
+const matches = {}; // 卓番号: { player1, player2, startTime }
+let nextTableNumber = 1;
+const MAX_TABLE_NUMBER = 999;
+
+let isMatchingEnabled = false; // 管理者によるマッチング制御
+
+// -----------------------------
+// 静的ファイル配信
+// -----------------------------
+app.use(express.static(path.join(__dirname, '../client/dist')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
-// ===== マッチング・ユーザー管理 =====
-let users = [];       // ログイン済みユーザー情報
-let battles = [];     // 対戦履歴
-let nextTableNumber = 1;
-
-// サンプル Socket.io ハンドリング
+// -----------------------------
+// Socket.io イベント
+// -----------------------------
 io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`);
+  console.log('ユーザー接続:', socket.id);
 
-  // ユーザーログイン
-  socket.on('login', (username) => {
-    // 001, 002... の自動ID付与
-    const id = String(users.length + 1).padStart(3, '0');
-    const user = { id, username, socketId: socket.id, wins: 0, searching: false };
-    users.push(user);
-    socket.emit('login_success', user);
+  // ログイン
+  socket.on('login', ({ name }) => {
+    if (!users[socket.id]) {
+      const id = String(nextUserId).padStart(3, '0');
+      nextUserId++;
+      users[socket.id] = { id, name, wins: 0, history: [], searching: false, opponentId: null };
+      socket.emit('login_success', { id, name, wins: 0 });
+      console.log(`ログイン: ${name} (${id})`);
+    }
   });
 
   // 対戦相手を探す
-  socket.on('start_search', () => {
-    const me = users.find(u => u.socketId === socket.id);
-    if (!me) return;
-    me.searching = true;
+  socket.on('find_opponent', () => {
+    if (!isMatchingEnabled) return;
+    const user = users[socket.id];
+    if (!user || user.searching) return;
 
-    // 同じく searching=true のユーザーでランダムにマッチング
-    const candidates = users.filter(u => u.searching && u.socketId !== socket.id);
+    user.searching = true;
+
+    // マッチング対象: searching=true かつ opponentId=null かつ 過去に対戦していないユーザー
+    const candidates = Object.entries(users).filter(([sid, u]) => {
+      return u.searching && u.opponentId === null && sid !== socket.id &&
+             !user.history.find(h => h.opponentId === u.id);
+    });
+
     if (candidates.length === 0) return; // 待機
-    const opponent = candidates[Math.floor(Math.random() * candidates.length)];
 
-    // 卓番号付与（001〜999）
-    const tableNumber = String(nextTableNumber).padStart(3, '0');
-    nextTableNumber = nextTableNumber < 999 ? nextTableNumber + 1 : 1;
+    // ランダム選択
+    const randomIndex = Math.floor(Math.random() * candidates.length);
+    const [opponentSocketId, opponent] = candidates[randomIndex];
 
-    // 対戦開始
-    const battle = {
-      tableNumber,
-      player1: me,
-      player2: opponent,
-      startTime: new Date(),
-      winner: null,
-      endTime: null
-    };
-    battles.push(battle);
+    // 卓番号割り当て
+    let tableNum = String(nextTableNumber).padStart(3, '0');
+    nextTableNumber++;
+    if (nextTableNumber > MAX_TABLE_NUMBER) nextTableNumber = 1;
 
-    // 検索フラグ解除
-    me.searching = false;
-    opponent.searching = false;
+    // マッチング
+    user.opponentId = opponent.id;
+    opponent.opponentId = user.id;
 
-    // 双方に通知
-    io.to(me.socketId).emit('matched', battle);
-    io.to(opponent.socketId).emit('matched', battle);
+    const startTime = new Date();
+    matches[tableNum] = { player1: socket.id, player2: opponentSocketId, startTime };
+
+    // 両者に通知
+    socket.emit('matched', { opponentName: opponent.name, tableNum });
+    io.to(opponentSocketId).emit('matched', { opponentName: user.name, tableNum });
+  });
+
+  // マッチングキャンセル
+  socket.on('cancel_find', () => {
+    const user = users[socket.id];
+    if (user) user.searching = false;
   });
 
   // 勝利報告
-  socket.on('report_win', () => {
-    const battle = battles.find(b => b.player1.socketId === socket.id || b.player2.socketId === socket.id);
-    if (!battle) return;
+  socket.on('report_win', ({ opponentId }) => {
+    const user = users[socket.id];
+    const opponent = Object.values(users).find(u => u.id === opponentId);
+    if (!user || !opponent) return;
 
-    // 勝者判定
-    const winner = battle.player1.socketId === socket.id ? battle.player1 : battle.player2;
-    winner.wins += 1;
-    battle.winner = winner;
-    battle.endTime = new Date();
+    const now = new Date();
+    user.wins++;
+    user.history.push({ opponentId: opponent.id, result: '勝ち', startTime: now, endTime: now });
+    opponent.history.push({ opponentId: user.id, result: '負け', startTime: now, endTime: now });
 
-    // 両者にメニュー画面に戻る通知
-    io.to(battle.player1.socketId).emit('return_menu', battle);
-    io.to(battle.player2.socketId).emit('return_menu', battle);
+    // 両者をメニュー画面に戻す
+    user.opponentId = null;
+    opponent.opponentId = null;
+    user.searching = false;
+    opponent.searching = false;
+
+    socket.emit('match_ended');
+    io.to(Object.keys(users).find(k => users[k].id === opponentId)).emit('match_ended');
   });
 
+  // 管理者用: マッチング開始
+  socket.on('admin_start_matching', () => {
+    isMatchingEnabled = true;
+    io.emit('matching_status', { enabled: true });
+  });
+
+  // 管理者用: マッチング終了
+  socket.on('admin_stop_matching', () => {
+    isMatchingEnabled = false;
+    io.emit('matching_status', { enabled: false });
+  });
+
+  // 切断時
   socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`);
-    // ユーザーリストから削除
-    users = users.filter(u => u.socketId !== socket.id);
+    console.log('ユーザー切断:', socket.id);
+    const user = users[socket.id];
+    if (user) {
+      delete users[socket.id];
+    }
   });
 });
 
-// ===== サーバー起動 =====
-const PORT = process.env.PORT || 10000;
+// -----------------------------
+// サーバー起動
+// -----------------------------
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-});
