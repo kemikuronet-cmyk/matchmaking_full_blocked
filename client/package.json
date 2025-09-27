@@ -1,11 +1,12 @@
 {
   "name": "matchmaking-client",
   "version": "1.0.0",
-  "private": false,
+  "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "npx vite build",
-    "preview": "npx vite preview"
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "vite preview"
   },
   "dependencies": {
     "react": "^18.2.0",
