@@ -8,7 +8,11 @@ const socket = io(
     : "http://localhost:4000"  // ローカル開発用
 );
 
-export default socket;
+export const socket = io(
+  process.env.NODE_ENV === "production"
+    ? window.location.origin
+    : "http://localhost:4000"
+);
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
