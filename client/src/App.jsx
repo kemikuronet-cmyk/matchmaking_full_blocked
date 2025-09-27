@@ -25,36 +25,19 @@ function App() {
   const [drawCount, setDrawCount] = useState(1);
   const [drawResult, setDrawResult] = useState([]);
 
-// --- Socket イベント ---
-useEffect(() => {
-  // socket.io の接続状態を確認
-  console.log("socket connected?", socket.connected);
-
-  // 自動ログイン復元
-  const savedUser = localStorage.getItem("user");
-  if (savedUser) {
-    const u = JSON.parse(savedUser);
-    setUser(u);
-    setLoggedIn(true);
-  }
-
   // --- Socket イベント ---
-  socket.on("login_ok", (u) => {
-    setUser(u);
-    setLoggedIn(true);
-    localStorage.setItem("user", JSON.stringify(u));
-  });
+  useEffect(() => {
+    console.log("socket connected?", socket.connected);
 
-  // 他の socket イベントハンドラもここに追加
-  // 例: socket.on("matched", ...);
+    // 自動ログイン復元
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
+      const u = JSON.parse(savedUser);
+      setUser(u);
+      setLoggedIn(true);
+    }
 
-  // クリーンアップ
-  return () => {
-    socket.off(); // 全イベントリスナー解除
-  };
-}, []); // カンマは不要
-
-
+    // Socket イベント登録
     socket.on("login_ok", (u) => {
       setUser(u);
       setLoggedIn(true);
@@ -82,11 +65,13 @@ useEffect(() => {
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => setDrawResult(res));
 
+    // クリーンアップ
     return () => {
-      socket.off();
+      socket.off(); // 全イベントリスナー解除
     };
   }, []);
 
+  // --- イベントハンドラ ---
   const handleLogin = () => {
     if (!name) return;
     socket.emit("login", { name });
@@ -121,6 +106,7 @@ useEffect(() => {
   const handleViewUsers = () => socket.emit("admin_view_users");
   const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
 
+  // --- レンダリング ---
   if (!loggedIn && !adminMode) {
     return (
       <div className="app">
@@ -159,9 +145,9 @@ useEffect(() => {
           <div className="admin-section">
             <h3>ユーザー管理</h3>
             <button onClick={handleViewUsers}>ユーザー一覧表示</button>
-            <button onClick={() => socket.emit('admin_logout_all')}>全ユーザーをログアウト</button>
+            <button onClick={() => socket.emit("admin_logout_all")}>全ユーザーをログアウト</button>
             <ul>
-              {usersList.map(u => (
+              {usersList.map((u) => (
                 <li key={u.id}>{u.id} | {u.name} | 対戦数: {u.history.length}</li>
               ))}
             </ul>
@@ -169,10 +155,10 @@ useEffect(() => {
 
           <div className="admin-section">
             <h3>抽選</h3>
-            <input type="number" min="1" value={drawCount} onChange={(e) => setDrawCount(Number(e.target.value))}/>
+            <input type="number" min="1" value={drawCount} onChange={(e) => setDrawCount(Number(e.target.value))} />
             <button onClick={handleDrawLots}>抽選する</button>
             <ul>
-              {drawResult.map(u => (
+              {drawResult.map((u) => (
                 <li key={u.id}>{u.id} | {u.name}</li>
               ))}
             </ul>
