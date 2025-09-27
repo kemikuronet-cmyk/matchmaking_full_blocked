@@ -25,7 +25,7 @@ function App() {
   const [drawCount, setDrawCount] = useState(1);
   const [drawResult, setDrawResult] = useState([]);
 
- // --- Socket イベント ---
+// --- Socket イベント ---
 useEffect(() => {
   // socket.io の接続状態を確認
   console.log("socket connected?", socket.connected);
@@ -38,14 +38,21 @@ useEffect(() => {
     setLoggedIn(true);
   }
 
+  // --- Socket イベント ---
   socket.on("login_ok", (u) => {
     setUser(u);
     setLoggedIn(true);
     localStorage.setItem("user", JSON.stringify(u));
   });
 
-  // ... 以下既存の socket イベントハンドラはそのまま
-}, []);
+  // 他の socket イベントハンドラもここに追加
+  // 例: socket.on("matched", ...);
+
+  // クリーンアップ
+  return () => {
+    socket.off(); // 全イベントリスナー解除
+  };
+}, []); // カンマは不要
 
 
     socket.on("login_ok", (u) => {
