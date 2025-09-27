@@ -5,10 +5,9 @@ const path = require("path");
 
 const app = express();
 
-// クライアントのビルドフォルダを配信
+// クライアント配信
 app.use(express.static(path.join(__dirname, "../client/dist")));
 
-// ルートアクセスは index.html を返す
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "../client/dist/index.html"));
 });
@@ -16,13 +15,12 @@ app.get("*", (req, res) => {
 // サーバー + Socket.IO
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*" } // 必要に応じて制限可
+  cors: { origin: "*" }
 });
 
-// Render では PORT 環境変数を使う
 const PORT = process.env.PORT || 4000;
 
-// データ管理（簡易版）
+// データ管理
 let users = [];
 let matches = [];
 let matchEnabled = false;
@@ -31,52 +29,79 @@ let matchEnabled = false;
 io.on("connection", (socket) => {
   console.log("新しいクライアント接続:", socket.id);
 
+  // ログイン
   socket.on("login", ({ name }) => {
     const user = { id: socket.id, name, history: [] };
     users.push(user);
+
     socket.emit("login_ok", user);
     console.log(`${name} がログイン`);
   });
 
+  // マッチング操作
   socket.on("find_opponent", () => {
     if (!matchEnabled) return;
-    const available = users.filter(u => u.id !== socket.id && !matches.some(m => m.includes(u.id)));
+
+    const user = users.find(u => u.id === socket.id);
+    if (!user) return;
+
+    // 過去にマッチしたユーザーを除外
+    const matchedIds = matches.flat();
+    const available = users.filter(
+      u => u.id !== socket.id && !matchedIds.includes(u.id)
+    );
+
     if (available.length > 0) {
       const opponent = available[0];
       const match = [socket.id, opponent.id];
       matches.push(match);
-      const deskNum = matches.length;
+
+      const deskNum = matches.indexOf(match) + 1;
       io.to(socket.id).emit("matched", { opponent, deskNum });
-      io.to(opponent.id).emit("matched", { opponent: users.find(u => u.id === socket.id), deskNum });
+      io.to(opponent.id).emit("matched", { opponent: user, deskNum });
     }
   });
 
-  socket.on("cancel_find", () => {});
+  socket.on("cancel_find", () => {
+    // ここではシンプルに何もしない
+  });
 
+  // 勝利報告
   socket.on("report_win", () => {
-    const match = matches.find(m => m.includes(socket.id));
-    if (!match) return;
+    const matchIndex = matches.findIndex(m => m.includes(socket.id));
+    if (matchIndex === -1) return;
+
+    const match = matches[matchIndex];
     const opponentId = match.find(id => id !== socket.id);
     const user = users.find(u => u.id === socket.id);
     const opponent = users.find(u => u.id === opponentId);
+
     if (user && opponent) {
       const now = new Date();
       user.history.push({ opponent: opponent.name, result: "win", startTime: now, endTime: now });
       opponent.history.push({ opponent: user.name, result: "lose", startTime: now, endTime: now });
+
       socket.emit("return_to_menu");
       io.to(opponentId).emit("return_to_menu");
-      matches = matches.filter(m => m !== match);
+
+      // マッチ削除
+      matches.splice(matchIndex, 1);
     }
   });
 
+  // 対戦履歴
   socket.on("request_history", () => {
     const user = users.find(u => u.id === socket.id);
-    if (user) socket.emit("history", user.history);
+    if (user) {
+      socket.emit("history", user.history);
+    }
   });
 
   // 管理者操作
   socket.on("admin_login", ({ password }) => {
-    if (password === "adminpass") socket.emit("admin_ok");
+    if (password === "adminpass") {
+      socket.emit("admin_ok");
+    }
   });
 
   socket.on("admin_toggle_match", ({ enable }) => {
@@ -84,29 +109,43 @@ io.on("connection", (socket) => {
     io.emit("match_status", { enabled: matchEnabled });
   });
 
-  socket.on("admin_view_users", () => socket.emit("admin_user_list", users));
+  socket.on("admin_view_users", () => {
+    socket.emit("admin_user_list", users);
+  });
 
   socket.on("admin_draw_lots", ({ count }) => {
-    const winners = [...users].sort(() => 0.5 - Math.random()).slice(0, count);
+    const shuffled = [...users].sort(() => 0.5 - Math.random());
+    const winners = shuffled.slice(0, count);
     socket.emit("admin_draw_result", winners);
   });
 
   socket.on("admin_logout_all", () => {
+    // 全ユーザーに強制ログアウト通知
+    users.forEach(u => {
+      io.to(u.id).emit("logout");
+    });
+
+    // サーバー側もリセット
     users = [];
+    matches = [];
     io.emit("return_to_menu");
   });
 
+  // ログアウト
   socket.on("logout", () => {
     users = users.filter(u => u.id !== socket.id);
+    matches = matches.filter(m => !m.includes(socket.id));
   });
 
+  // 切断
   socket.on("disconnect", () => {
     users = users.filter(u => u.id !== socket.id);
+    matches = matches.filter(m => !m.includes(socket.id));
     console.log("クライアント切断:", socket.id);
   });
 });
 
-// Render 用に必ず 0.0.0.0 にバインド
+// 0.0.0.0 にバインド
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
