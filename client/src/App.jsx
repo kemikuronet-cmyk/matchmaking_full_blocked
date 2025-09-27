@@ -49,7 +49,11 @@ function App() {
       setDeskNum(deskNum);
     });
 
+    // ここで全ユーザー強制ログアウト対応
     socket.on("return_to_menu", () => {
+      setUser(null);
+      setLoggedIn(false);
+      localStorage.removeItem("user");
       setOpponent(null);
       setDeskNum("");
       setSearching(false);
