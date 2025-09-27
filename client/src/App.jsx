@@ -25,13 +25,28 @@ function App() {
   const [drawCount, setDrawCount] = useState(1);
   const [drawResult, setDrawResult] = useState([]);
 
-  useEffect(() => {
-    const savedUser = localStorage.getItem("user");
-    if (savedUser) {
-      const u = JSON.parse(savedUser);
-      setUser(u);
-      setLoggedIn(true);
-    }
+ // --- Socket イベント ---
+useEffect(() => {
+  // socket.io の接続状態を確認
+  console.log("socket connected?", socket.connected);
+
+  // 自動ログイン復元
+  const savedUser = localStorage.getItem("user");
+  if (savedUser) {
+    const u = JSON.parse(savedUser);
+    setUser(u);
+    setLoggedIn(true);
+  }
+
+  socket.on("login_ok", (u) => {
+    setUser(u);
+    setLoggedIn(true);
+    localStorage.setItem("user", JSON.stringify(u));
+  });
+
+  // ... 以下既存の socket イベントハンドラはそのまま
+}, []);
+
 
     socket.on("login_ok", (u) => {
       setUser(u);
