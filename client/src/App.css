@@ -200,7 +200,7 @@ body, html {
   text-align: center;
 }
 
-/* 管理者ログイン右上を横並びに */
+/* 管理者ログイン右上を横並びに小さめ表示 */
 .admin-login-topright {
   position: absolute;
   top: 20px;
@@ -208,8 +208,8 @@ body, html {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 6px;
-  font-size: 14px;
+  gap: 4px;
+  font-size: 12px;
 }
 
 /* 管理者ボタン */
@@ -217,11 +217,20 @@ body, html {
   background-color: #f44336;
   color: #fff;
   border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
   cursor: pointer;
 }
 
 .admin-btn:hover {
   opacity: 0.9;
+}
+
+/* 管理者パスワード入力欄 */
+.admin-login-topright input {
+  padding: 4px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
 }
