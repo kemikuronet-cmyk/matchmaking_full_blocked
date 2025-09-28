@@ -20,7 +20,7 @@ let matches = {}; // deskNum -> [userId1, userId2]
 let matchEnabled = false;
 let lotteryWinners = []; // 当選者の sessionId リスト
 
-// --- 卓番号割り当て（空き番号を優先） ---
+// 卓番号割り当て（空き番号を優先）
 function assignDeskNum() {
   let deskNum = 1;
   while (matches[deskNum]) deskNum++;
@@ -68,7 +68,20 @@ io.on("connection", (socket) => {
       if (opponent) currentOpponent = { id: opponent.id, name: opponent.name };
     }
 
-    socket.emit("login_ok", { ...user, currentOpponent, deskNum: user.deskNum, lotteryWinner: lotteryWinners.includes(user.sessionId) });
+    // 当選者情報
+    const winnerNames = users
+      .filter(u => lotteryWinners.includes(u.sessionId))
+      .map(u => u.name);
+    const isWinner = lotteryWinners.includes(user.sessionId);
+
+    socket.emit("login_ok", {
+      ...user,
+      currentOpponent,
+      deskNum: user.deskNum,
+      lotteryWinner: isWinner,
+      lotteryWinnersList: winnerNames
+    });
+
     console.log(`${name} がログイン（${user.sessionId}）`);
   });
 
@@ -154,12 +167,10 @@ io.on("connection", (socket) => {
     user.status = "idle";
     user.opponentId = null;
     user.deskNum = null;
-
     opponent.status = "idle";
     opponent.opponentId = null;
     opponent.deskNum = null;
 
-    // 卓番号解放
     if (matches[deskNum]) delete matches[deskNum];
 
     socket.emit("return_to_menu_battle");
@@ -198,6 +209,12 @@ io.on("connection", (socket) => {
     winners.forEach(u => {
       const s = users.find(us => us.sessionId === u.sessionId);
       if (s) io.to(s.id).emit("lottery_winner");
+    });
+
+    // 全ユーザーに最新リスト通知
+    const winnerNames = users.filter(u => lotteryWinners.includes(u.sessionId)).map(u => u.name);
+    users.forEach(u => {
+      io.to(u.id).emit("lottery_winners_list", { winners: winnerNames, lotteryWinner: lotteryWinners.includes(u.sessionId) });
     });
   });
 
