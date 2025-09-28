@@ -1,4 +1,3 @@
-
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -17,13 +16,13 @@ app.get("*", (req, res) => {
 // サーバー + Socket.IO
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*" } // 必要に応じて制限可
+  cors: { origin: "*" }
 });
 
 // ポート設定
 const PORT = process.env.PORT || 4000;
 
-// データ管理（簡易版）
+// データ管理
 let users = [];
 let matches = [];
 let matchEnabled = false;
@@ -72,9 +71,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("cancel_find", () => {
-    // シンプルにキャンセルだけ
-  });
+  socket.on("cancel_find", () => {});
 
   // 勝利報告
   socket.on("report_win", () => {
@@ -90,8 +87,9 @@ io.on("connection", (socket) => {
       user.history.push({ opponent: opponent.name, result: "win", startTime: now, endTime: now });
       opponent.history.push({ opponent: user.name, result: "lose", startTime: now, endTime: now });
 
-      socket.emit("return_to_menu");
-      io.to(opponentId).emit("return_to_menu");
+      // 勝利報告後は対戦画面に戻るだけ
+      socket.emit("return_to_menu_battle");
+      io.to(opponentId).emit("return_to_menu_battle");
 
       // マッチ解消
       matches = matches.filter(m => m !== match);
@@ -106,9 +104,7 @@ io.on("connection", (socket) => {
 
   // 管理者操作
   socket.on("admin_login", ({ password }) => {
-    if (password === "adminpass") {
-      socket.emit("admin_ok");
-    }
+    if (password === "adminpass") socket.emit("admin_ok");
   });
 
   socket.on("admin_toggle_match", ({ enable }) => {
@@ -126,17 +122,13 @@ io.on("connection", (socket) => {
     socket.emit("admin_draw_result", winners);
   });
 
- // 管理者操作: 全ユーザーを強制ログアウト
-socket.on("admin_logout_all", () => {
-  // 全ユーザーにログアウト指示を送信
-  io.emit("return_to_menu");
-
-  // サーバー側のユーザーデータをリセット
-  users = [];
-  matches = [];
-  console.log("全ユーザーを強制ログアウトしました");
-});
-
+  // 管理者操作: 全ユーザーを強制ログアウト
+  socket.on("admin_logout_all", () => {
+    io.emit("force_logout"); // 変更
+    users = [];
+    matches = [];
+    console.log("全ユーザーを強制ログアウトしました");
+  });
 
   // ログアウト
   socket.on("logout", () => {
@@ -152,7 +144,6 @@ socket.on("admin_logout_all", () => {
   });
 });
 
-// 0.0.0.0 にバインド
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
