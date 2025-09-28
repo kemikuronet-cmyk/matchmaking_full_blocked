@@ -31,7 +31,6 @@ function App() {
 
   // --- Socket.io イベント ---
   useEffect(() => {
-    // ページ更新後の自動再ログイン
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       const u = JSON.parse(savedUser);
@@ -45,10 +44,12 @@ function App() {
       setLoggedIn(true);
       localStorage.setItem("user", JSON.stringify(u));
 
-      // 復元された状態を反映
-      setSearching(u.status === "searching");
-      if (u.status === "matched" && u.opponentId) {
-        setOpponent(u.currentOpponent || null);
+      // --- 復元情報 ---
+      if (u.status === "searching") setSearching(true);
+      else setSearching(false);
+
+      if (u.currentOpponent) {
+        setOpponent(u.currentOpponent);
         setDeskNum(u.deskNum || "");
       } else {
         setOpponent(null);
@@ -62,11 +63,7 @@ function App() {
       setSearching(false);
     });
 
-    socket.on("searching_restore", () => {
-      setSearching(true);
-      setOpponent(null);
-      setDeskNum("");
-    });
+    socket.on("searching_restore", () => setSearching(true));
 
     socket.on("return_to_menu_battle", () => {
       setOpponent(null);
@@ -90,14 +87,8 @@ function App() {
     });
 
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
-
-    socket.on("admin_ok", () => {
-      setAdminMode(true);
-      setLoggedIn(true);
-    });
-
+    socket.on("admin_ok", () => setAdminMode(true));
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
-
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => setDrawResult(res));
 
@@ -131,6 +122,8 @@ function App() {
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
     socket.emit("report_win");
     setSearching(false);
+    setOpponent(null);
+    setDeskNum("");
   };
 
   const handleShowHistory = () => socket.emit("request_history");
@@ -140,6 +133,7 @@ function App() {
     localStorage.removeItem("user");
     window.location.reload();
   };
+
   const handleToggleMatch = () => socket.emit("admin_toggle_match", { enable: !matchEnabled });
   const handleViewUsers = () => {
     if (showUserList) setShowUserList(false);
@@ -148,6 +142,7 @@ function App() {
       setShowUserList(true);
     }
   };
+
   const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
