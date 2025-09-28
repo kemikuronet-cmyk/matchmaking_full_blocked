@@ -29,6 +29,9 @@ function App() {
   const [drawCount, setDrawCount] = useState(1);
   const [drawResult, setDrawResult] = useState([]);
 
+  // --- 新規追加: 抽選当選通知 ---
+  const [lotteryWinner, setLotteryWinner] = useState(false);
+
   // --- Socket.io イベント ---
   useEffect(() => {
     // ページ更新後の自動再ログイン
@@ -78,6 +81,7 @@ function App() {
       setSearching(false);
       setOpponent(null);
       setDeskNum(null);
+      setLotteryWinner(false);
     });
 
     socket.on("history", (hist) => {
@@ -90,6 +94,11 @@ function App() {
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => setDrawResult(res));
+
+    // --- 新規追加: 当選通知 ---
+    socket.on("lottery_winner", () => {
+      setLotteryWinner(true);
+    });
 
     return () => socket.off();
   }, []);
@@ -130,6 +139,7 @@ function App() {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
     localStorage.removeItem("user");
+    setLotteryWinner(false);
     window.location.reload();
   };
 
@@ -247,6 +257,9 @@ function App() {
     <div className="app app-background" style={commonStyle}>
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
+        {/* --- 当選メッセージ --- */}
+        {lotteryWinner && <div style={{ color: "red", fontWeight: "bold", marginBottom: "10px" }}>当選しました！</div>}
+
         {!searching && matchEnabled && (
           <button className="main-btn" onClick={handleFindOpponent}>対戦相手を探す</button>
         )}
