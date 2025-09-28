@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -45,24 +46,31 @@ io.on("connection", (socket) => {
         status: "idle",
         opponentId: null,
         deskNum: null,
+        currentOpponent: null,
       };
       users.push(user);
     }
 
-    // 現在の対戦相手情報をセット
-    let currentOpponent = null;
+    // ログイン成功時に currentOpponent を返す
+    let payload = { ...user };
     if (user.status === "matched" && user.opponentId) {
-      const opp = users.find(u => u.id === user.opponentId);
-      if (opp) currentOpponent = { id: opp.id, name: opp.name };
+      const opponent = users.find(u => u.id === user.opponentId);
+      if (opponent) payload.currentOpponent = { id: opponent.id, name: opponent.name };
     }
 
-    socket.emit("login_ok", { ...user, currentOpponent });
+    socket.emit("login_ok", payload);
+    console.log(`${name} がログイン（${user.sessionId}）`);
   });
 
   // --- 管理者ログイン ---
   socket.on("admin_login", ({ password }) => {
-    if (password === "admin123") socket.emit("admin_ok");
-    else socket.emit("admin_fail");
+    if (password === "admin123") {
+      socket.emit("admin_ok");
+      console.log("管理者ログイン成功");
+    } else {
+      socket.emit("admin_fail");
+      console.log("管理者ログイン失敗");
+    }
   });
 
   // --- マッチング開始／停止 ---
@@ -80,6 +88,7 @@ io.on("connection", (socket) => {
     user.status = "searching";
     user.opponentId = null;
     user.deskNum = null;
+    user.currentOpponent = null;
 
     const available = users.filter(u =>
       u.id !== socket.id &&
@@ -104,8 +113,11 @@ io.on("connection", (socket) => {
       user.deskNum = deskNum;
       opponent.deskNum = deskNum;
 
-      io.to(socket.id).emit("matched", { opponent, deskNum });
-      io.to(opponent.id).emit("matched", { opponent: user, deskNum });
+      user.currentOpponent = { id: opponent.id, name: opponent.name };
+      opponent.currentOpponent = { id: user.id, name: user.name };
+
+      io.to(socket.id).emit("matched", { opponent: user.currentOpponent, deskNum });
+      io.to(opponent.id).emit("matched", { opponent: opponent.currentOpponent, deskNum });
     }
   });
 
@@ -115,6 +127,7 @@ io.on("connection", (socket) => {
       user.status = "idle";
       user.opponentId = null;
       user.deskNum = null;
+      user.currentOpponent = null;
     }
   });
 
@@ -138,6 +151,8 @@ io.on("connection", (socket) => {
       opponent.opponentId = null;
       user.deskNum = null;
       opponent.deskNum = null;
+      user.currentOpponent = null;
+      opponent.currentOpponent = null;
 
       socket.emit("return_to_menu_battle");
       io.to(opponentId).emit("return_to_menu_battle");
@@ -146,7 +161,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // --- 管理者関連 ---
+  // --- 管理者：ユーザー一覧 ---
   socket.on("admin_view_users", () => {
     const list = users.map(u => ({
       id: u.id,
@@ -158,6 +173,7 @@ io.on("connection", (socket) => {
     socket.emit("admin_user_list", list);
   });
 
+  // --- 管理者：抽選 ---
   socket.on("admin_draw_lots", ({ count }) => {
     const now = new Date();
     const candidates = users.filter(u => {
@@ -169,16 +185,18 @@ io.on("connection", (socket) => {
 
     const shuffled = candidates.sort(() => 0.5 - Math.random());
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
+
     socket.emit("admin_draw_result", winners.map(u => ({ name: u.name })));
   });
 
+  // --- 管理者：全ユーザー強制ログアウト ---
   socket.on("admin_logout_all", () => {
     users.forEach(u => io.to(u.id).emit("force_logout"));
     users = [];
     matches = [];
   });
 
-  // --- 対戦履歴 ---
+  // --- ユーザーメニュー：対戦履歴 ---
   socket.on("request_history", () => {
     const user = users.find(u => u.id === socket.id);
     if (!user) return;
