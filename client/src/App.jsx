@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
+import backgroundImg from "./images/background.jpg"; // 画像を import
 
 const socket = io(
   process.env.NODE_ENV === "production"
@@ -124,7 +125,7 @@ function App() {
       <div
         className="login-screen"
         style={{
-          backgroundImage: `url("/images/background.jpg")`,
+          backgroundImage: `url(${backgroundImg})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
@@ -166,8 +167,89 @@ function App() {
     );
   }
 
-  // 以下、既存の管理者画面・ユーザー画面・対戦画面はそのまま…
-  // 省略（変更不要）
+  if (adminMode) {
+    return (
+      <div className="app">
+        <div className="header">管理者画面</div>
+        <div className="admin-screen">
+          <div className="admin-section">
+            <button className="main-btn" onClick={handleToggleMatch}>
+              {matchEnabled ? "マッチング状態" : "マッチング開始"}
+            </button>
+          </div>
+
+          <div className="admin-section">
+            <button className="main-btn" onClick={handleViewUsers}>ユーザー一覧表示</button>
+            {showUserList && (
+              <ul>
+                {usersList.map((u) => (
+                  <li key={u.id}>{u.id} | {u.name} | 対戦数: {u.history.length}</li>
+                ))}
+              </ul>
+            )}
+            <button className="main-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
+          </div>
+
+          <div className="admin-section">
+            <h3>抽選</h3>
+            <input
+              type="number"
+              min="1"
+              value={drawCount}
+              onChange={(e) => setDrawCount(Number(e.target.value))}
+            />
+            <button className="main-btn" onClick={handleDrawLots}>抽選する</button>
+            <ul>
+              {drawResult.map((u) => (
+                <li key={u.id}>{u.id} | {u.name}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (opponent) {
+    return (
+      <div className="battle-screen">
+        <h3>対戦相手: {opponent.name}</h3>
+        <div>卓番号: {deskNum}</div>
+        <button className="main-btn" onClick={handleWinReport}>勝利報告</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app">
+      <div className="header">{user?.name}</div>
+      <div className="menu-screen">
+        {matchEnabled ? (
+          <button className="main-btn" onClick={handleFindOpponent}>
+            {searching ? "対戦相手を探しています…" : "対戦相手を探す"}
+          </button>
+        ) : (
+          <div className="match-disabled">マッチング受付時間外です</div>
+        )}
+        <button className="main-btn" onClick={handleShowHistory}>対戦履歴を確認する</button>
+        <button className="main-btn" onClick={handleLogout}>ログアウト</button>
+      </div>
+
+      {showHistory && (
+        <div className="history-modal">
+          <h3>対戦履歴</h3>
+          <ul>
+            {history.map((h, i) => (
+              <li key={i}>
+                相手: {h.opponent} | {h.result} | 開始: {h.startTime} | 終了: {h.endTime}
+              </li>
+            ))}
+          </ul>
+          <button className="main-btn" onClick={() => setShowHistory(false)}>閉じる</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default App;
