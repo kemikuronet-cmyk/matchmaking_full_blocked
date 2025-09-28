@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
+import backgroundImg from "./images/background.jpg"; // 背景画像
 
 const socket = io(
   process.env.NODE_ENV === "production"
@@ -123,7 +124,16 @@ function App() {
   // --- レンダリング ---
   if (!loggedIn && !adminMode) {
     return (
-      <div className="login-screen">
+      <div
+        className="login-screen"
+        style={{
+          backgroundImage: `url(${backgroundImg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          height: "100vh",
+        }}
+      >
         {/* 管理者ログイン右上 */}
         <div className="admin-login-topright">
           <input
@@ -131,12 +141,8 @@ function App() {
             value={adminPassword}
             onChange={(e) => setAdminPassword(e.target.value)}
             placeholder="管理者パスワード"
-            inputMode="latin"   // 半角英数字優先
+            inputMode="latin"
             autoComplete="off"
-            onKeyDown={(e) => {
-              // Enterキーのみ阻止、文字入力は許可
-              if (e.key === "Enter") e.preventDefault();
-            }}
           />
           <button className="admin-btn" onClick={handleAdminLogin}>管理者ログイン</button>
         </div>
@@ -158,7 +164,16 @@ function App() {
 
   if (adminMode) {
     return (
-      <div className="app">
+      <div
+        className="app"
+        style={{
+          backgroundImage: `url(${backgroundImg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          minHeight: "100vh",
+        }}
+      >
         <div className="header">管理者画面</div>
         <div className="admin-screen">
           <div className="admin-section">
@@ -201,7 +216,16 @@ function App() {
 
   if (opponent) {
     return (
-      <div className="battle-screen">
+      <div
+        className="battle-screen"
+        style={{
+          backgroundImage: `url(${backgroundImg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          minHeight: "100vh",
+        }}
+      >
         <h3>対戦相手: {opponent.name}</h3>
         <div>卓番号: {deskNum}</div>
         <button className="main-btn" onClick={handleWinReport}>勝利報告</button>
@@ -209,8 +233,18 @@ function App() {
     );
   }
 
+  // ユーザーメニュー画面
   return (
-    <div className="app">
+    <div
+      className="app"
+      style={{
+        backgroundImage: `url(${backgroundImg})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        minHeight: "100vh",
+      }}
+    >
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
         {matchEnabled ? (
