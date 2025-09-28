@@ -241,3 +241,12 @@ body::before {
   border: 1px solid #ccc;
   text-align: center;
 }
+
+.app-background {
+  background-image: url('/images/background.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  min-height: 100vh;
+}
+
