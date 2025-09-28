@@ -48,12 +48,18 @@ button:hover {
   opacity: 0.9;
 }
 
+/* 管理者ボタン */
+.admin-btn {
+  background-color: #f44336;
+  color: #fff;
+}
+
 /* ログイン画面 */
 .login-screen {
   height: 100vh;
   display: flex;
-  justify-content: center;
-  align-items: flex-start; /* 上寄せ */
+  justify-content: flex-start; /* 上寄せ */
+  align-items: center;         /* 横中央寄せ */
   flex-direction: column;
   position: relative;
   gap: 40px;
