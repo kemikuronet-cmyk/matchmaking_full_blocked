@@ -4,7 +4,24 @@ body, html {
   padding: 0;
   height: 100%;
   font-family: Arial, sans-serif;
-  background-color: #f0f4f8;
+
+  /* 背景画像 */
+  background-image: url('./images/background.jpg'); /* client/public/images 配下 */
+  background-size: cover;       /* 画面いっぱいに拡大縮小 */
+  background-position: center;  /* 中央に配置 */
+  background-repeat: no-repeat; /* 繰り返さない */
+  position: relative;
+}
+
+/* オーバーレイ（文字やボタンを見やすくする） */
+body::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.2); /* 半透明黒 */
+  z-index: 0;
 }
 
 /* App コンテナ */
@@ -14,6 +31,8 @@ body, html {
   align-items: center;
   text-align: center;
   padding-top: 80px; /* 上寄せ */
+  position: relative;
+  z-index: 1; /* オーバーレイより前に表示 */
 }
 
 /* ヘッダー */
@@ -42,6 +61,7 @@ body, html {
   cursor: pointer;
   margin: 8px 0;
   transition: opacity 0.2s;
+  z-index: 1;
 }
 
 .main-btn:hover {
@@ -52,6 +72,16 @@ body, html {
 .admin-btn {
   background-color: #f44336;
   color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.admin-btn:hover {
+  opacity: 0.9;
 }
 
 /* ログイン画面 */
@@ -64,6 +94,7 @@ body, html {
   position: relative;
   gap: 40px;
   padding-top: 100px;
+  z-index: 1;
 }
 
 /* ユーザーログイン中央 */
@@ -79,11 +110,19 @@ body, html {
   position: absolute;
   top: 20px;
   right: 20px;
-  text-align: right;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
+  flex-direction: row; /* 横並び */
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  z-index: 1;
+}
+
+.admin-login-topright input {
+  padding: 4px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
 }
 
 /* メニュー画面 */
@@ -92,6 +131,7 @@ body, html {
   flex-direction: column;
   gap: 15px;
   align-items: center;
+  z-index: 1;
 }
 
 /* 対戦画面 */
@@ -102,9 +142,9 @@ body, html {
   align-items: center;
   justify-content: center;
   margin-top: 80px;
+  z-index: 1;
 }
 
-/* 勝利報告ボタンの目立たせ */
 .battle-screen .main-btn {
   width: 220px;
 }
@@ -114,6 +154,7 @@ body, html {
   color: red;
   font-weight: bold;
   margin: 10px 0;
+  z-index: 1;
 }
 
 /* 履歴モーダル */
@@ -166,6 +207,7 @@ body, html {
   align-items: center;
   gap: 25px;
   margin-top: 100px;
+  z-index: 1;
 }
 
 /* 管理者セクション */
@@ -174,9 +216,9 @@ body, html {
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  z-index: 1;
 }
 
-/* ユーザー一覧 / 抽選リスト */
 .admin-section ul {
   list-style: none;
   padding: 0;
@@ -184,6 +226,7 @@ body, html {
   width: 100%;
   max-height: 150px;
   overflow-y: auto;
+  z-index: 1;
 }
 
 .admin-section li {
@@ -191,46 +234,10 @@ body, html {
   margin-bottom: 4px;
 }
 
-/* 抽選用インプット */
 .admin-section input[type="number"] {
   padding: 6px;
   width: 80px;
   border-radius: 5px;
   border: 1px solid #ccc;
   text-align: center;
-}
-
-/* 管理者ログイン右上を横並びに小さめ表示 */
-.admin-login-topright {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-}
-
-/* 管理者ボタン */
-.admin-btn {
-  background-color: #f44336;
-  color: #fff;
-  border: none;
-  border-radius: 5px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.admin-btn:hover {
-  opacity: 0.9;
-}
-
-/* 管理者パスワード入力欄 */
-.admin-login-topright input {
-  padding: 4px 6px;
-  font-size: 12px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
 }
