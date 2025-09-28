@@ -65,7 +65,10 @@ function App() {
       setShowHistory(true);
     });
 
-    socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
+    socket.on("match_status", ({ enabled }) => {
+  console.log("match_status received:", enabled); // ← デバッグログ
+  setMatchEnabled(enabled);
+});
 
     socket.on("admin_ok", () => {
       setAdminMode(true);
