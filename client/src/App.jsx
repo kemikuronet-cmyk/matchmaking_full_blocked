@@ -117,28 +117,31 @@ function App() {
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
   // --- レンダリング ---
-  if (!loggedIn && !adminMode) {
-    return (
-      <div className="app">
-        <div className="login-screen">
-          <h2>ユーザーとしてログイン</h2>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="ユーザー名" />
-          <button onClick={handleLogin}>ログイン</button>
-
-          <hr />
-
-          <h2>管理者としてログイン</h2>
-          <input
-            type="password"
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-            placeholder="管理者パスワード"
-          />
-          <button onClick={handleAdminLogin}>管理者ログイン</button>
-        </div>
+if (!loggedIn) {
+  return (
+    <div className="login-screen">
+      {/* 管理者ログイン右上 */}
+      <div className="admin-login-topright">
+        <h4>管理者としてログイン</h4>
+        <input
+          type="password"
+          value={adminPassword}
+          onChange={(e) => setAdminPassword(e.target.value)}
+          placeholder="管理者パスワード"
+        />
+        <button onClick={handleAdminLogin}>管理者ログイン</button>
       </div>
-    );
-  }
+
+      {/* ユーザーとしてログイン（中央） */}
+      <h2>ユーザーとしてログイン</h2>
+      <form onSubmit={handleLogin}>
+        <input type="text" name="username" placeholder="ユーザー名" />
+        <button type="submit">ログイン</button>
+      </form>
+    </div>
+  );
+}
+
 
   if (adminMode) {
     return (
