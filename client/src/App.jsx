@@ -131,9 +131,12 @@ function App() {
             value={adminPassword}
             onChange={(e) => setAdminPassword(e.target.value)}
             placeholder="管理者パスワード"
-            onKeyDown={(e) => e.preventDefault()}
-            inputMode="latin"   // 半角英数字を優先
+            inputMode="latin"   // 半角英数字優先
             autoComplete="off"
+            onKeyDown={(e) => {
+              // Enterキーのみ阻止、文字入力は許可
+              if (e.key === "Enter") e.preventDefault();
+            }}
           />
           <button className="admin-btn" onClick={handleAdminLogin}>管理者ログイン</button>
         </div>
