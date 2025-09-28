@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
 import backgroundImage from "./images/background.jpg";
@@ -29,29 +29,30 @@ function App() {
   const [drawCount, setDrawCount] = useState(1);
   const [drawResult, setDrawResult] = useState([]);
 
-  // --- 抽選当選通知 ---
   const [lotteryWinner, setLotteryWinner] = useState(false);
-  const [lotteryWinnersList, setLotteryWinnersList] = useState([]);
+
+  // --- 自動ログインフラグ ---
+  const loginAttempted = useRef(false);
 
   useEffect(() => {
-    // 自動再ログイン
-    const savedUser = localStorage.getItem("user");
-    if (savedUser) {
-      const u = JSON.parse(savedUser);
-      setUser(u);
-      setLoggedIn(true);
-      socket.emit("login", { name: u.name, sessionId: u.sessionId });
+    // ページ更新後の自動再ログイン（1回だけ）
+    if (!loginAttempted.current) {
+      const savedUser = localStorage.getItem("user");
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        setUser(u);
+        setLoggedIn(true);
+        socket.emit("login", { name: u.name, sessionId: u.sessionId });
+      }
+      loginAttempted.current = true;
     }
 
-    // --- Socket.io イベント ---
     socket.on("login_ok", (u) => {
       setUser(u);
       setLoggedIn(true);
       localStorage.setItem("user", JSON.stringify(u));
 
-      if (u.status === "searching") setSearching(true);
-      else setSearching(false);
-
+      setSearching(u.status === "searching");
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
         setDeskNum(u.deskNum);
@@ -59,6 +60,8 @@ function App() {
         setOpponent(null);
         setDeskNum(null);
       }
+
+      if (u.lotteryWinner) setLotteryWinner(true);
     });
 
     socket.on("matched", ({ opponent, deskNum }) => {
@@ -82,7 +85,6 @@ function App() {
       setOpponent(null);
       setDeskNum(null);
       setLotteryWinner(false);
-      setLotteryWinnersList([]);
     });
 
     socket.on("history", (hist) => {
@@ -94,18 +96,12 @@ function App() {
     socket.on("admin_ok", () => setAdminMode(true));
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
     socket.on("admin_user_list", (list) => setUsersList(list));
-    socket.on("admin_draw_result", (res) => {
-      setDrawResult(res);
-      setLotteryWinnersList(res);
-      if (user && res.some(w => w.name === user.name)) {
-        setLotteryWinner(true);
-      } else {
-        setLotteryWinner(false);
-      }
-    });
+    socket.on("admin_draw_result", (res) => setDrawResult(res));
+
+    socket.on("lottery_winner", () => setLotteryWinner(true));
 
     return () => socket.off();
-  }, [user]);
+  }, []);
 
   // --- ハンドラ ---
   const handleLogin = () => {
@@ -261,34 +257,19 @@ function App() {
     <div className="app app-background" style={commonStyle}>
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
-        {/* --- 当選メッセージ --- */}
-        {lotteryWinner && (
-          <div style={{ color: "red", fontWeight: "bold", marginBottom: "10px" }}>
-            当選しました！
-          </div>
-        )}
+        {lotteryWinner && <div style={{ color: "red", fontWeight: "bold", marginBottom: "10px" }}>当選しました！</div>}
 
         {!searching && matchEnabled && (
           <button className="main-btn" onClick={handleFindOpponent}>対戦相手を探す</button>
         )}
         {searching && <button className="main-btn" onClick={handleCancelSearch}>検索をキャンセル</button>}
         {!matchEnabled && <div className="match-disabled">マッチング受付時間外です</div>}
-
-        {/* --- 当選者一覧 --- */}
-        {lotteryWinnersList.length > 0 && (
-          <div style={{ marginTop: "10px" }}>
-            <h4>抽選当選者:</h4>
-            <ul>{lotteryWinnersList.map((u, i) => <li key={i}>{u.name}</li>)}</ul>
-          </div>
-        )}
-
         <button className="main-btn" onClick={handleShowHistory}>対戦履歴を確認する</button>
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
       </div>
 
       {showHistory && (
         <div className="history-modal">
-          {/* 閉じるボタンを上に配置 */}
           <button className="main-btn" onClick={() => setShowHistory(false)}>閉じる</button>
           <h3>対戦履歴</h3>
           <ul>{history.map((h, i) => <li key={i}>相手: {h.opponent} | 結果: {h.result}</li>)}</ul>
