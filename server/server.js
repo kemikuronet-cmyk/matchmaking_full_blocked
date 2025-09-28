@@ -76,7 +76,10 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("cancel_find", () => {});
+ socket.on("cancel_find", () => {
+    console.log(`${socket.id} が検索キャンセル`);
+    // 必要に応じて matches や searching フラグを解除
+  });
 
   // 勝利報告
   socket.on("report_win", () => {
@@ -149,6 +152,7 @@ io.on("connection", (socket) => {
     users = users.filter(u => u.id !== socket.id);
     matches = matches.filter(m => !m.includes(socket.id));
     console.log("クライアント切断:", socket.id);
+    
   });
 });
 
