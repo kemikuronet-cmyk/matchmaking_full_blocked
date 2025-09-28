@@ -51,6 +51,14 @@ io.on("connection", (socket) => {
     }
   });
 
+  // 管理者マッチング開始／停止
+socket.on("admin_toggle_match", ({ enable }) => {
+  console.log("admin_toggle_match received:", enable); // デバッグ用
+  matchEnabled = enable;
+  io.emit("match_status", { enabled: matchEnabled });
+});
+
+  
   // 管理者用ユーザー一覧
   socket.on("admin_view_users", () => {
     const list = users.map(u => ({
