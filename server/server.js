@@ -15,9 +15,7 @@ app.get("*", (req, res) => {
 
 // サーバー + Socket.IO
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 4000;
 
@@ -29,13 +27,12 @@ let matchEnabled = false;
 io.on("connection", (socket) => {
   console.log("新しいクライアント接続:", socket.id);
 
-  // 接続時にマッチング状態送信
   socket.emit("match_status", { enabled: matchEnabled });
 
   // --- ログイン ---
   socket.on("login", ({ name }) => {
     const now = new Date();
-    const user = { 
+    const user = {
       id: socket.id,
       name,
       history: [],
@@ -48,7 +45,24 @@ io.on("connection", (socket) => {
     console.log(`${name} がログイン`);
   });
 
-  // --- マッチング操作 ---
+  // --- 管理者ログイン ---
+  socket.on("admin_login", ({ password }) => {
+    if (password === "admin123") {
+      socket.emit("admin_ok");
+      console.log("管理者ログイン成功");
+    } else {
+      socket.emit("admin_fail");
+      console.log("管理者ログイン失敗");
+    }
+  });
+
+  // --- 管理者マッチング開始／停止 ---
+  socket.on("admin_toggle_match", ({ enable }) => {
+    matchEnabled = enable;
+    io.emit("match_status", { enabled: matchEnabled });
+  });
+
+  // --- 対戦相手検索 ---
   socket.on("find_opponent", () => {
     if (!matchEnabled) return;
     const user = users.find(u => u.id === socket.id);
@@ -72,7 +86,6 @@ io.on("connection", (socket) => {
       user.recentOpponents.push(opponent.id);
       opponent.recentOpponents.push(user.id);
 
-      // 対戦成立 → 両者検索フラグ解除
       user.searching = false;
       opponent.searching = false;
 
@@ -110,24 +123,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // --- 管理者ログイン ---
-  socket.on("admin_login", ({ password }) => {
-    if (password === "admin123") {
-      socket.emit("admin_ok");
-      console.log("管理者ログイン成功");
-    } else {
-      socket.emit("admin_fail");
-      console.log("管理者ログイン失敗");
-    }
-  });
-
-  // --- 管理者マッチング開始／停止 ---
-  socket.on("admin_toggle_match", ({ enable }) => {
-    matchEnabled = enable;
-    io.emit("match_status", { enabled: matchEnabled });
-  });
-
-  // --- 管理者ユーザー一覧 ---
+  // --- 管理者：ユーザー一覧 ---
   socket.on("admin_view_users", () => {
     const list = users.map(u => ({
       id: u.id,
@@ -138,38 +134,45 @@ io.on("connection", (socket) => {
     socket.emit("admin_user_list", list);
   });
 
-  // --- 管理者抽選（条件付き） ---
+  // --- 管理者：抽選 ---
   socket.on("admin_draw_lots", ({ count }) => {
     const now = new Date();
     const candidates = users.filter(u => {
-      const loginTime = new Date(u.loginTime);
-      const hoursSinceLogin = (now - loginTime) / (1000 * 60 * 60);
-      const matchesPlayed = u.history?.length || 0;
-      return hoursSinceLogin >= 2 || matchesPlayed >= 5;
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      return u.loginTime <= twoHoursAgo || (u.history?.length || 0) >= 5;
     });
 
-    if (candidates.length === 0) {
-      socket.emit("admin_draw_result", []);
-      return;
-    }
+    if (candidates.length === 0) return socket.emit("admin_draw_result", []);
 
+    // ランダム抽選
     const shuffled = candidates.sort(() => 0.5 - Math.random());
-    const winners = shuffled.slice(0, count);
-    socket.emit("admin_draw_result", winners);
+    const winners = shuffled.slice(0, Math.min(count, candidates.length));
+
+    socket.emit("admin_draw_result", winners.map(u => ({ id: u.id, name: u.name })));
+  });
+
+  // --- 管理者：全ユーザー強制ログアウト ---
+  socket.on("admin_logout_all", () => {
+    users.forEach(u => io.to(u.id).emit("force_logout"));
+    users = [];
+    matches = [];
+  });
+
+  // --- ユーザーメニュー：対戦履歴 ---
+  socket.on("request_history", () => {
+    const user = users.find(u => u.id === socket.id);
+    if (!user) return;
+    socket.emit("history", user.history || []);
   });
 
   // --- ログアウト ---
   socket.on("logout", () => {
-    users = users.filter(u => u.id !== socket.id);
+    const userIndex = users.findIndex(u => u.id === socket.id);
+    if (userIndex !== -1) users.splice(userIndex, 1);
     matches = matches.filter(m => !m.includes(socket.id));
+    socket.emit("force_logout");
   });
 
-  // --- 切断 ---
-  socket.on("disconnect", () => {
-    users = users.filter(u => u.id !== socket.id);
-    matches = matches.filter(m => !m.includes(socket.id));
-    console.log("クライアント切断:", socket.id);
-  });
 });
 
 server.listen(PORT, "0.0.0.0", () => {
