@@ -28,7 +28,6 @@ function App() {
 
   // --- Socket イベント ---
   useEffect(() => {
-    // 自動ログイン復元
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       const u = JSON.parse(savedUser);
@@ -105,7 +104,14 @@ function App() {
     window.location.reload();
   };
 
-  const handleAdminLogin = () => socket.emit("admin_login", { password: adminPassword });
+  // --- 簡易管理者ログイン ---
+  const handleAdminLogin = () => {
+    if (adminPassword === "admin123") { // 簡易パスワード
+      setAdminMode(true);
+    } else {
+      alert("パスワードが間違っています");
+    }
+  };
 
   const handleToggleMatch = () => {
     socket.emit("admin_toggle_match", { enable: !matchEnabled });
@@ -136,7 +142,7 @@ function App() {
             onChange={(e) => setAdminPassword(e.target.value)}
             placeholder="管理者パスワード"
           />
-          <button onClick={handleAdminLogin}>管理者ログイン</button>
+          <button className="admin-btn" onClick={handleAdminLogin}>管理者ログイン</button>
         </div>
 
         <div className="user-login-center">
@@ -198,7 +204,6 @@ function App() {
 
   // --- ユーザーメニュー ---
   if (opponent) {
-    // マッチング専用画面
     return (
       <div className="battle-screen">
         <h3>対戦相手: {opponent.name}</h3>
