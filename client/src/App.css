@@ -49,29 +49,41 @@ button:hover {
   opacity: 0.9;
 }
 
-/* ログイン画面 */
+/* ログイン画面全体 */
 .login-screen {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;  /* 上寄せ */
-  height: 80vh;                 /* 上寄せ＋縦スペース調整 */
-  gap: 15px;
+  justify-content: flex-start; /* 上寄せ */
+  height: 100vh; /* 画面全体に高さを確保 */
+  padding-top: 150px; /* 上からの余白 */
+  gap: 20px;
 }
 
-.login-screen button {
-  background-color: #4CAF50;  /* 緑 */
-  color: white;               /* 白字 */
+/* フォーム内を縦並びに */
+.login-screen form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* input と button の間隔 */
+  align-items: center;
+}
+
+/* ボタン共通: 緑色 */
+button {
+  background-color: #4CAF50; /* 緑色 */
+  color: white;
   padding: 10px 20px;
+  margin: 5px;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   font-size: 1em;
 }
 
-.login-screen button:hover {
-  opacity: 0.85;
+button:hover {
+  opacity: 0.8;
 }
+
 
 
 /* 管理者ログインを右上に小さく */
