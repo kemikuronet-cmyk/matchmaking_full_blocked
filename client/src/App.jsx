@@ -28,9 +28,11 @@ function App() {
   const [showUserList, setShowUserList] = useState(false);
   const [drawCount, setDrawCount] = useState(1);
   const [drawResult, setDrawResult] = useState([]);
-  const [lotteryWinner, setLotteryWinner] = useState(false);
-  const [lotteryWinnersList, setLotteryWinnersList] = useState([]);
 
+  const [lotteryWinner, setLotteryWinner] = useState(false);
+  const [lotteryList, setLotteryList] = useState([]);
+
+  // --- 自動ログインフラグ ---
   const loginAttempted = useRef(false);
 
   useEffect(() => {
@@ -59,7 +61,7 @@ function App() {
         setDeskNum(null);
       }
 
-      setLotteryWinner(u.lotteryWinner || false);
+      if (u.lotteryWinner) setLotteryWinner(true);
     });
 
     socket.on("matched", ({ opponent, deskNum }) => {
@@ -83,7 +85,6 @@ function App() {
       setOpponent(null);
       setDeskNum(null);
       setLotteryWinner(false);
-      setLotteryWinnersList([]);
     });
 
     socket.on("history", (hist) => {
@@ -95,18 +96,15 @@ function App() {
     socket.on("admin_ok", () => setAdminMode(true));
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
     socket.on("admin_user_list", (list) => setUsersList(list));
-    socket.on("admin_draw_result", (res) => {
-      setDrawResult(res);
-      setLotteryWinnersList(res.map(u => u.name));
-      if (user && res.find(u => u.name === user.name)) setLotteryWinner(true);
-      else setLotteryWinner(false);
-    });
+    socket.on("admin_draw_result", (res) => setDrawResult(res));
 
     socket.on("lottery_winner", () => setLotteryWinner(true));
+    socket.on("update_lottery_list", (list) => setLotteryList(list));
 
     return () => socket.off();
-  }, [user]);
+  }, []);
 
+  // --- ハンドラ ---
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
@@ -143,7 +141,6 @@ function App() {
     socket.emit("logout");
     localStorage.removeItem("user");
     setLotteryWinner(false);
-    setLotteryWinnersList([]);
     window.location.reload();
   };
 
@@ -166,6 +163,7 @@ function App() {
     minHeight: "100vh",
   };
 
+  // --- レンダリング ---
   if (!loggedIn && !adminMode) {
     return (
       <div className="login-screen app-background" style={commonStyle}>
@@ -270,12 +268,11 @@ function App() {
         <button className="main-btn" onClick={handleShowHistory}>対戦履歴を確認する</button>
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
-        {/* 当選者リスト */}
-        {lotteryWinnersList.length > 0 && (
-          <div style={{ color: "yellow", marginTop: "20px" }}>
-            <h4>当選者リスト</h4>
+        {lotteryList.length > 0 && (
+          <div style={{ marginTop: "15px", color: "yellow" }}>
+            <h4>抽選当選者一覧</h4>
             <ul>
-              {lotteryWinnersList.map((name, i) => <li key={i}>{name}</li>)}
+              {lotteryList.map((u, i) => <li key={i}>{u.name}</li>)}
             </ul>
           </div>
         )}
