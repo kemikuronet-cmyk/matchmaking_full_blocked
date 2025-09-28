@@ -43,12 +43,13 @@ function App() {
     socket.on("matched", ({ opponent, deskNum }) => {
       setOpponent(opponent);
       setDeskNum(deskNum);
+      setSearching(false); // マッチング成立で検索中フラグリセット
     });
 
     socket.on("return_to_menu_battle", () => {
       setOpponent(null);
       setDeskNum("");
-      setSearching(false);
+      setSearching(false); // 戻るときに検索中フラグリセット
     });
 
     socket.on("force_logout", () => {
@@ -73,14 +74,59 @@ function App() {
     return () => socket.off();
   }, []);
 
-  const handleLogin = () => { if (!name) return; socket.emit("login", { name }); };
-  const handleAdminLogin = () => { if (adminPassword === "admin123") { setAdminMode(true); setLoggedIn(true); } else { alert("パスワードが間違っています"); }};
-  const handleFindOpponent = () => { if (searching) { setSearching(false); socket.emit("cancel_find"); } else { setSearching(true); socket.emit("find_opponent"); }};
-  const handleWinReport = () => { if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return; socket.emit("report_win"); };
+  // --- ハンドラ ---
+  const handleLogin = () => {
+    if (!name) return;
+    socket.emit("login", { name });
+  };
+
+  const handleAdminLogin = () => {
+    if (adminPassword === "admin123") {
+      setAdminMode(true);
+      setLoggedIn(true);
+    } else {
+      alert("パスワードが間違っています");
+    }
+  };
+
+  const handleFindOpponent = () => {
+    if (searching) return; // 検索中は押せない
+    setSearching(true);
+    socket.emit("find_opponent");
+  };
+
+  const handleCancelFind = () => {
+    setSearching(false);
+    socket.emit("cancel_find");
+  };
+
+  const handleWinReport = () => {
+    if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
+    socket.emit("report_win");
+    setOpponent(null);
+    setDeskNum("");
+    setSearching(false); // 勝利報告後に検索中フラグリセット
+  };
+
   const handleShowHistory = () => socket.emit("request_history");
-  const handleLogout = () => { if (!window.confirm("ログイン名、対戦履歴がリセットされます。ログアウトしますか？")) return; socket.emit("logout"); localStorage.removeItem("user"); window.location.reload(); };
+
+  const handleLogout = () => {
+    if (!window.confirm("ログイン名、対戦履歴がリセットされます。ログアウトしますか？")) return;
+    socket.emit("logout");
+    localStorage.removeItem("user");
+    window.location.reload();
+  };
+
   const handleToggleMatch = () => socket.emit("admin_toggle_match", { enable: !matchEnabled });
-  const handleViewUsers = () => { if (showUserList) setShowUserList(false); else { socket.emit("admin_view_users"); setShowUserList(true); }};
+
+  const handleViewUsers = () => {
+    if (showUserList) setShowUserList(false);
+    else {
+      socket.emit("admin_view_users");
+      setShowUserList(true);
+    }
+  };
+
   const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
@@ -197,9 +243,14 @@ function App() {
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
         {matchEnabled ? (
-          <button className="main-btn" onClick={handleFindOpponent}>
-            {searching ? "対戦相手を探しています…" : "対戦相手を探す"}
-          </button>
+          <div>
+            <button className="main-btn" onClick={handleFindOpponent} disabled={searching}>
+              {searching ? "対戦相手を探しています…" : "対戦相手を探す"}
+            </button>
+            {searching && (
+              <button className="main-btn" onClick={handleCancelFind}>検索をキャンセル</button>
+            )}
+          </div>
         ) : (
           <div className="match-disabled">マッチング受付時間外です</div>
         )}
