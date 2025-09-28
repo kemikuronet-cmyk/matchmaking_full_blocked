@@ -13,11 +13,14 @@ function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [name, setName] = useState("");
   const [user, setUser] = useState(null);
+
   const [searching, setSearching] = useState(false);
   const [opponent, setOpponent] = useState(null);
   const [deskNum, setDeskNum] = useState("");
+
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
+
   const [adminMode, setAdminMode] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [usersList, setUsersList] = useState([]);
@@ -38,9 +41,26 @@ function App() {
     }
 
     socket.on("login_ok", (u) => {
+      // サーバー側から復元されたユーザー情報が返る
       setUser(u);
       setLoggedIn(true);
       localStorage.setItem("user", JSON.stringify(u));
+
+      // --- 復元情報があれば反映 ---
+      if (u.searching) {
+        setSearching(true);
+      } else {
+        setSearching(false);
+      }
+
+      if (u.currentOpponent) {
+        // サーバー側が「対戦中の相手」を返す仕様の場合
+        setOpponent(u.currentOpponent);
+        setDeskNum(u.deskNum || "");
+      } else {
+        setOpponent(null);
+        setDeskNum("");
+      }
     });
 
     socket.on("matched", ({ opponent, deskNum }) => {
@@ -60,6 +80,9 @@ function App() {
       setLoggedIn(false);
       setAdminMode(false);
       setUser(null);
+      setSearching(false);
+      setOpponent(null);
+      setDeskNum("");
     });
 
     socket.on("history", (hist) => {
