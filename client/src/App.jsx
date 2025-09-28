@@ -66,7 +66,6 @@ function App() {
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
     socket.on("admin_ok", () => setAdminMode(true));
     socket.on("admin_user_list", (list) => {
-      console.log(list); // デバッグ用
       setUsersList(list);
     });
     socket.on("admin_draw_result", (res) => setDrawResult(res));
@@ -214,7 +213,7 @@ function App() {
           <ul>
             {history.map((h, i) => (
               <li key={i}>
-                相手: {h.opponent} | {h.result}
+                相手: {h.opponent} | 結果: {h.result}
               </li>
             ))}
           </ul>
