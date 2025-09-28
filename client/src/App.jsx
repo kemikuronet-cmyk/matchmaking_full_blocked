@@ -26,7 +26,6 @@ function App() {
   const [drawCount, setDrawCount] = useState(1);
   const [drawResult, setDrawResult] = useState([]);
 
-  // --- Socket イベント ---
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
@@ -74,7 +73,6 @@ function App() {
     };
   }, []);
 
-  // --- イベントハンドラ ---
   const handleLogin = () => {
     if (!name) return;
     socket.emit("login", { name });
@@ -104,9 +102,9 @@ function App() {
     window.location.reload();
   };
 
-  // --- 簡易管理者ログイン ---
+  // 簡易管理者ログイン
   const handleAdminLogin = () => {
-    if (adminPassword === "admin123") { // 簡易パスワード
+    if (adminPassword === "admin123") {
       setAdminMode(true);
     } else {
       alert("パスワードが間違っています");
@@ -153,7 +151,7 @@ function App() {
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <button onClick={handleLogin}>ログイン</button>
+          <button className="main-btn" onClick={handleLogin}>ログイン</button>
         </div>
       </div>
     );
@@ -165,13 +163,13 @@ function App() {
         <div className="header">管理者画面</div>
         <div className="admin-screen">
           <div className="admin-section">
-            <button onClick={handleToggleMatch}>
+            <button className="main-btn" onClick={handleToggleMatch}>
               {matchEnabled ? "マッチング状態" : "マッチング開始"}
             </button>
           </div>
 
           <div className="admin-section">
-            <button onClick={handleViewUsers}>ユーザー一覧表示</button>
+            <button className="main-btn" onClick={handleViewUsers}>ユーザー一覧表示</button>
             {showUserList && (
               <ul>
                 {usersList.map((u) => (
@@ -179,7 +177,7 @@ function App() {
                 ))}
               </ul>
             )}
-            <button onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
+            <button className="main-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
           </div>
 
           <div className="admin-section">
@@ -190,7 +188,7 @@ function App() {
               value={drawCount}
               onChange={(e) => setDrawCount(Number(e.target.value))}
             />
-            <button onClick={handleDrawLots}>抽選する</button>
+            <button className="main-btn" onClick={handleDrawLots}>抽選する</button>
             <ul>
               {drawResult.map((u) => (
                 <li key={u.id}>{u.id} | {u.name}</li>
@@ -202,13 +200,13 @@ function App() {
     );
   }
 
-  // --- ユーザーメニュー ---
+  // ユーザーメニュー
   if (opponent) {
     return (
       <div className="battle-screen">
         <h3>対戦相手: {opponent.name}</h3>
         <div>卓番号: {deskNum}</div>
-        <button onClick={handleWinReport}>勝利報告</button>
+        <button className="main-btn" onClick={handleWinReport}>勝利報告</button>
       </div>
     );
   }
@@ -218,14 +216,14 @@ function App() {
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
         {matchEnabled ? (
-          <button onClick={handleFindOpponent}>
+          <button className="main-btn" onClick={handleFindOpponent}>
             {searching ? "対戦相手を探しています…" : "対戦相手を探す"}
           </button>
         ) : (
           <div className="match-disabled">マッチング受付時間外です</div>
         )}
-        <button onClick={handleShowHistory}>対戦履歴を確認する</button>
-        <button onClick={handleLogout}>ログアウト</button>
+        <button className="main-btn" onClick={handleShowHistory}>対戦履歴を確認する</button>
+        <button className="main-btn" onClick={handleLogout}>ログアウト</button>
       </div>
 
       {showHistory && (
@@ -238,7 +236,7 @@ function App() {
               </li>
             ))}
           </ul>
-          <button onClick={() => setShowHistory(false)}>閉じる</button>
+          <button className="main-btn" onClick={() => setShowHistory(false)}>閉じる</button>
         </div>
       )}
     </div>
