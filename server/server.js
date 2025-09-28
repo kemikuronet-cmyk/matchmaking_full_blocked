@@ -180,12 +180,20 @@ io.on("connection", (socket) => {
     const now = new Date();
     const candidates = users.filter(u => {
       const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-      return u.loginTime <= twoHoursAgo || (u.history?.length || 0) >= 5;
+      return u.loginTime >= twoHoursAgo;
     });
     if (candidates.length === 0) return socket.emit("admin_draw_result", []);
+
     const shuffled = candidates.sort(() => 0.5 - Math.random());
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
+
+    // 管理者へ結果
     socket.emit("admin_draw_result", winners.map(u => ({ name: u.name })));
+
+    // 当選者へ通知
+    winners.forEach(w => {
+      io.to(w.id).emit("lottery_winner");
+    });
   });
 
   // --- 管理者：全ユーザー強制ログアウト ---
