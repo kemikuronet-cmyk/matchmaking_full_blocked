@@ -149,7 +149,8 @@ body::before {
   gap: 15px;
   align-items: center;
   justify-content: flex-start; /* 上寄せ */
-  margin-top: 120px;
+  padding-top: 80px;           /* ヘッダー高さ分だけ余白 */
+  margin-top: 0;               /* 余分な下げをなくす */
   z-index: 1;
   color: white; /* 文字を白に */
 }
