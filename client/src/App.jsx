@@ -90,7 +90,12 @@ function App() {
   const handleWinReport = () => { if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return; socket.emit("report_win"); setSearching(false); };
   const handleShowHistory = () => socket.emit("request_history");
   const handleLogout = () => { if (!window.confirm("ログイン名、対戦履歴がリセットされます。ログアウトしますか？")) return; socket.emit("logout"); localStorage.removeItem("user"); window.location.reload(); };
-  const handleToggleMatch = () => socket.emit("admin_toggle_match", { enable: !matchEnabled });
+ 
+  const handleToggleMatch = () => {
+  console.log("toggle match button pressed");
+  socket.emit("admin_toggle_match", { enable: !matchEnabled });
+};
+
   const handleViewUsers = () => { if (showUserList) setShowUserList(false); else { socket.emit("admin_view_users"); setShowUserList(true); }};
   const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
