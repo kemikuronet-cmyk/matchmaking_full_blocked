@@ -13,32 +13,33 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "../client/dist/index.html"));
 });
 
-// --- サーバー + Socket.IO ---
+// サーバー + Socket.IO
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*" }
 });
+
+const PORT = process.env.PORT || 4000;
 
 // --- データ管理 ---
 let users = [];
 let matches = [];
 let matchEnabled = false;
 
-// --- Socket.IO 接続処理 ---
 io.on("connection", (socket) => {
   console.log("新しいクライアント接続:", socket.id);
 
-  // 現在のマッチング状態を送信
+  // 接続時にマッチング状態送信
   socket.emit("match_status", { enabled: matchEnabled });
 
   // --- ログイン ---
   socket.on("login", ({ name }) => {
     const now = new Date();
     const user = { 
-      id: socket.id, 
-      name, 
-      history: [], 
-      recentOpponents: [], 
+      id: socket.id,
+      name,
+      history: [],
+      recentOpponents: [],
       loginTime: now,
       searching: false
     };
@@ -57,7 +58,7 @@ io.on("connection", (socket) => {
 
     const available = users.filter(u =>
       u.id !== socket.id &&
-      u.searching &&                  // 検索中の人だけ
+      u.searching &&
       !matches.some(m => m.includes(u.id)) &&
       !user.recentOpponents.includes(u.id)
     );
@@ -99,7 +100,6 @@ io.on("connection", (socket) => {
       user.history.push({ opponent: opponent.name, result: "win", startTime: now, endTime: now });
       opponent.history.push({ opponent: user.name, result: "lose", startTime: now, endTime: now });
 
-      // 対戦後は検索解除
       user.searching = false;
       opponent.searching = false;
 
@@ -127,7 +127,7 @@ io.on("connection", (socket) => {
     io.emit("match_status", { enabled: matchEnabled });
   });
 
-  // --- 管理者用ユーザー一覧 ---
+  // --- 管理者ユーザー一覧 ---
   socket.on("admin_view_users", () => {
     const list = users.map(u => ({
       id: u.id,
@@ -138,22 +138,40 @@ io.on("connection", (socket) => {
     socket.emit("admin_user_list", list);
   });
 
-  // --- ログアウト・切断 ---
+  // --- 管理者抽選（条件付き） ---
+  socket.on("admin_draw_lots", ({ count }) => {
+    const now = new Date();
+    const candidates = users.filter(u => {
+      const loginTime = new Date(u.loginTime);
+      const hoursSinceLogin = (now - loginTime) / (1000 * 60 * 60);
+      const matchesPlayed = u.history?.length || 0;
+      return hoursSinceLogin >= 2 || matchesPlayed >= 5;
+    });
+
+    if (candidates.length === 0) {
+      socket.emit("admin_draw_result", []);
+      return;
+    }
+
+    const shuffled = candidates.sort(() => 0.5 - Math.random());
+    const winners = shuffled.slice(0, count);
+    socket.emit("admin_draw_result", winners);
+  });
+
+  // --- ログアウト ---
   socket.on("logout", () => {
     users = users.filter(u => u.id !== socket.id);
     matches = matches.filter(m => !m.includes(socket.id));
   });
 
+  // --- 切断 ---
   socket.on("disconnect", () => {
     users = users.filter(u => u.id !== socket.id);
     matches = matches.filter(m => !m.includes(socket.id));
     console.log("クライアント切断:", socket.id);
   });
-
 });
 
-// --- サーバ起動 ---
-const PORT = process.env.PORT || 4000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
