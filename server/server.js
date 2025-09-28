@@ -36,7 +36,14 @@ io.on("connection", (socket) => {
 
   // ログイン
   socket.on("login", ({ name }) => {
-    const user = { id: socket.id, name, history: [], recentOpponents: [] };
+    const now = new Date();
+    const user = {
+      id: socket.id,
+      name,
+      history: [],
+      recentOpponents: [],
+      loginTime: now // ログイン時間を保存
+    };
     users.push(user);
     socket.emit("login_ok", user);
     console.log(`${name} がログイン`);
@@ -49,7 +56,6 @@ io.on("connection", (socket) => {
     const user = users.find(u => u.id === socket.id);
     if (!user) return;
 
-    // まだマッチしていないユーザーの中から、直近対戦相手以外を選ぶ
     const available = users.filter(u =>
       u.id !== socket.id &&
       !matches.some(m => m.includes(u.id)) &&
@@ -62,7 +68,6 @@ io.on("connection", (socket) => {
       matches.push(match);
       const deskNum = matches.length;
 
-      // recentOpponents に記録
       user.recentOpponents.push(opponent.id);
       opponent.recentOpponents.push(user.id);
 
@@ -87,11 +92,9 @@ io.on("connection", (socket) => {
       user.history.push({ opponent: opponent.name, result: "win", startTime: now, endTime: now });
       opponent.history.push({ opponent: user.name, result: "lose", startTime: now, endTime: now });
 
-      // 勝利報告後は対戦画面に戻るだけ
       socket.emit("return_to_menu_battle");
       io.to(opponentId).emit("return_to_menu_battle");
 
-      // マッチ解消
       matches = matches.filter(m => m !== match);
     }
   });
@@ -113,7 +116,13 @@ io.on("connection", (socket) => {
   });
 
   socket.on("admin_view_users", () => {
-    socket.emit("admin_user_list", users);
+    const list = users.map(u => ({
+      id: u.id,
+      name: u.name,
+      history: u.history,
+      loginTime: u.loginTime || null // loginTime を必ず送る
+    }));
+    socket.emit("admin_user_list", list);
   });
 
   socket.on("admin_draw_lots", ({ count }) => {
@@ -122,9 +131,8 @@ io.on("connection", (socket) => {
     socket.emit("admin_draw_result", winners);
   });
 
-  // 管理者操作: 全ユーザーを強制ログアウト
   socket.on("admin_logout_all", () => {
-    io.emit("force_logout"); // 変更
+    io.emit("force_logout");
     users = [];
     matches = [];
     console.log("全ユーザーを強制ログアウトしました");
