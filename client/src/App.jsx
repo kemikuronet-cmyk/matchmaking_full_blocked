@@ -122,7 +122,9 @@ function App() {
             {showUserList && (
               <ul>
                 {usersList.map((u) => (
-                  <li className="text-on-background" key={u.id}>{u.id} | {u.name} | 対戦数: {u.history.length}</li>
+                  <li className="text-on-background" key={u.id}>
+                    {u.id} | {u.name} | 対戦数: {u.history.length} | 勝: {u.winCount} | 敗: {u.loseCount} | ログイン: {new Date(u.loginTime).toLocaleString()}
+                  </li>
                 ))}
               </ul>
             )}
@@ -175,7 +177,7 @@ function App() {
           <ul>
             {history.map((h, i) => (
               <li key={i} className="text-on-background">
-                相手: {h.opponent} | {h.result} | 開始: {h.startTime} | 終了: {h.endTime}
+                相手: {h.opponent} | 結果: {h.result}
               </li>
             ))}
           </ul>
