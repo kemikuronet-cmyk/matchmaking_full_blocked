@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
-import backgroundImg from "./images/background.jpg"; // 画像を import
 
 const socket = io(
   process.env.NODE_ENV === "production"
@@ -71,7 +70,6 @@ function App() {
     return () => socket.off();
   }, []);
 
-  // --- イベントハンドラ ---
   const handleLogin = () => {
     if (!name) return;
     socket.emit("login", { name });
@@ -119,20 +117,18 @@ function App() {
   const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
+  const commonStyle = {
+    backgroundImage: `url("/images/background.jpg")`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    minHeight: "100vh",
+  };
+
   // --- レンダリング ---
   if (!loggedIn && !adminMode) {
     return (
-      <div
-        className="login-screen"
-        style={{
-          backgroundImage: `url(${backgroundImg})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          minHeight: "100vh",
-        }}
-      >
-        {/* 管理者ログイン右上 */}
+      <div className="login-screen app-background" style={commonStyle}>
         <div className="admin-login-topright">
           <input
             type="password"
@@ -150,7 +146,6 @@ function App() {
           </button>
         </div>
 
-        {/* ユーザーログイン */}
         <div className="user-login-center">
           <h2>ユーザーとしてログイン</h2>
           <input
@@ -169,7 +164,7 @@ function App() {
 
   if (adminMode) {
     return (
-      <div className="app">
+      <div className="app app-background" style={commonStyle}>
         <div className="header">管理者画面</div>
         <div className="admin-screen">
           <div className="admin-section">
@@ -212,7 +207,7 @@ function App() {
 
   if (opponent) {
     return (
-      <div className="battle-screen">
+      <div className="battle-screen app-background" style={commonStyle}>
         <h3>対戦相手: {opponent.name}</h3>
         <div>卓番号: {deskNum}</div>
         <button className="main-btn" onClick={handleWinReport}>勝利報告</button>
@@ -221,7 +216,7 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app app-background" style={commonStyle}>
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
         {matchEnabled ? (
