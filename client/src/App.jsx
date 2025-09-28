@@ -75,6 +75,14 @@ function App() {
     socket.emit("login", { name });
   };
 
+  const handleAdminLogin = () => {
+    if (adminPassword === "admin123") {
+      setAdminMode(true);
+    } else {
+      alert("パスワードが間違っています");
+    }
+  };
+
   const handleFindOpponent = () => {
     if (searching) {
       setSearching(false);
@@ -99,14 +107,6 @@ function App() {
     window.location.reload();
   };
 
-  const handleAdminLogin = () => {
-    if (adminPassword === "admin123") {
-      setAdminMode(true);
-    } else {
-      alert("パスワードが間違っています");
-    }
-  };
-
   const handleToggleMatch = () => socket.emit("admin_toggle_match", { enable: !matchEnabled });
   const handleViewUsers = () => {
     if (showUserList) setShowUserList(false);
@@ -122,13 +122,14 @@ function App() {
   if (!loggedIn) {
     return (
       <div className="login-screen">
-        {/* 管理者ログインを一行表示 */}
+        {/* 管理者ログイン右上一行表示 */}
         <div className="admin-login-topright">
           <input
             type="password"
             value={adminPassword}
             onChange={(e) => setAdminPassword(e.target.value)}
             placeholder="管理者パスワード"
+            onKeyDown={(e) => e.preventDefault()} // Enterキーでユーザー用ログインを阻止
           />
           <button className="admin-btn" onClick={handleAdminLogin}>管理者ログイン</button>
         </div>
