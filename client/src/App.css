@@ -5,8 +5,8 @@ body, html {
   height: 100%;
   font-family: Arial, sans-serif;
 
-  /* 背景画像 */
-  background-image: url('./images/background.jpg'); /* client/public/images 配下 */
+  /* 背景画像を public 配下から参照 */
+  background-image: url('/images/background.jpg');
   background-size: cover;       /* 画面いっぱいに拡大縮小 */
   background-position: center;  /* 中央に配置 */
   background-repeat: no-repeat; /* 繰り返さない */
@@ -30,7 +30,7 @@ body::before {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding-top: 80px; /* 上寄せ */
+  padding-top: 80px;
   position: relative;
   z-index: 1; /* オーバーレイより前に表示 */
 }
