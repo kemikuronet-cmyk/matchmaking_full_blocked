@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
 
+// ここで画像をインポート
+import backgroundImage from "./images/background.jpg";
+
 const socket = io(
   process.env.NODE_ENV === "production"
     ? window.location.origin
@@ -117,8 +120,9 @@ function App() {
   const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
+  // 共通背景スタイル
   const commonStyle = {
-    backgroundImage: `url("/images/background.jpg")`,
+    backgroundImage: `url(${backgroundImage})`,
     backgroundSize: "cover",
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
@@ -137,9 +141,7 @@ function App() {
             placeholder="管理者パスワード"
             inputMode="latin"
             autoComplete="off"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.preventDefault();
-            }}
+            onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
           />
           <button className="admin-btn" onClick={handleAdminLogin}>
             管理者ログイン
@@ -154,9 +156,7 @@ function App() {
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <button className="main-btn" onClick={handleLogin}>
-            ログイン
-          </button>
+          <button className="main-btn" onClick={handleLogin}>ログイン</button>
         </div>
       </div>
     );
