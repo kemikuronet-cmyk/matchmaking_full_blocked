@@ -70,6 +70,7 @@ function App() {
     return () => socket.off();
   }, []);
 
+  // --- イベントハンドラ ---
   const handleLogin = () => {
     if (!name) return;
     socket.emit("login", { name });
@@ -78,6 +79,7 @@ function App() {
   const handleAdminLogin = () => {
     if (adminPassword === "admin123") {
       setAdminMode(true);
+      setLoggedIn(true);  // ここを追加して管理者画面に遷移可能に
     } else {
       alert("パスワードが間違っています");
     }
@@ -119,17 +121,17 @@ function App() {
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
   // --- レンダリング ---
-  if (!loggedIn) {
+  if (!loggedIn && !adminMode) {
     return (
       <div className="login-screen">
-        {/* 管理者ログイン右上一行表示 */}
+        {/* 管理者ログイン右上 */}
         <div className="admin-login-topright">
           <input
             type="password"
             value={adminPassword}
             onChange={(e) => setAdminPassword(e.target.value)}
             placeholder="管理者パスワード"
-            onKeyDown={(e) => e.preventDefault()} // Enterキーでユーザー用ログインを阻止
+            onKeyDown={(e) => e.preventDefault()} // Enterでユーザーログインを阻止
           />
           <button className="admin-btn" onClick={handleAdminLogin}>管理者ログイン</button>
         </div>
