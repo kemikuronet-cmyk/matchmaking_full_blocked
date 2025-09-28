@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
 
+// Socket を App 内で定義
 const socket = io(
   process.env.NODE_ENV === "production"
     ? window.location.origin
@@ -24,9 +25,11 @@ function App() {
   const [drawCount, setDrawCount] = useState(1);
   const [drawResult, setDrawResult] = useState([]);
 
+  // --- Socket イベント ---
   useEffect(() => {
     console.log("socket connected?", socket.connected);
 
+    // 自動ログイン復元
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       const u = JSON.parse(savedUser);
@@ -34,6 +37,7 @@ function App() {
       setLoggedIn(true);
     }
 
+    // Socket イベント登録
     socket.on("login_ok", (u) => {
       setUser(u);
       setLoggedIn(true);
@@ -45,12 +49,14 @@ function App() {
       setDeskNum(deskNum);
     });
 
+    // 勝利報告後はメニュー画面に戻る
     socket.on("return_to_menu_battle", () => {
       setOpponent(null);
       setDeskNum("");
       setSearching(false);
     });
 
+    // 管理者による強制ログアウト
     socket.on("force_logout", () => {
       localStorage.removeItem("user");
       setLoggedIn(false);
@@ -68,11 +74,18 @@ function App() {
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => setDrawResult(res));
 
-    return () => socket.off();
+    // クリーンアップ
+    return () => {
+      socket.off(); // 全イベントリスナー解除
+    };
   }, []);
 
   // --- イベントハンドラ ---
-  const handleLogin = () => socket.emit("login", { name });
+  const handleLogin = () => {
+    if (!name) return;
+    socket.emit("login", { name });
+  };
+
   const handleFindOpponent = () => {
     if (searching) {
       setSearching(false);
@@ -82,21 +95,26 @@ function App() {
       socket.emit("find_opponent");
     }
   };
+
   const handleWinReport = () => {
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
     socket.emit("report_win");
   };
+
   const handleShowHistory = () => socket.emit("request_history");
+
   const handleLogout = () => {
     if (!window.confirm("ログイン名、対戦履歴がリセットされます。ログアウトしますか？")) return;
     socket.emit("logout");
     localStorage.removeItem("user");
     window.location.reload();
   };
+
   const handleAdminLogin = () => socket.emit("admin_login", { password: adminPassword });
   const handleToggleMatch = (enable) => socket.emit("admin_toggle_match", { enable });
   const handleViewUsers = () => socket.emit("admin_view_users");
   const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
+  const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
   // --- レンダリング ---
   if (!loggedIn && !adminMode) {
@@ -110,7 +128,12 @@ function App() {
           <hr />
 
           <h2>管理者としてログイン</h2>
-          <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="管理者パスワード"/>
+          <input
+            type="password"
+            value={adminPassword}
+            onChange={(e) => setAdminPassword(e.target.value)}
+            placeholder="管理者パスワード"
+          />
           <button onClick={handleAdminLogin}>管理者ログイン</button>
         </div>
       </div>
@@ -132,7 +155,7 @@ function App() {
           <div className="admin-section">
             <h3>ユーザー管理</h3>
             <button onClick={handleViewUsers}>ユーザー一覧表示</button>
-            <button onClick={() => socket.emit("admin_logout_all")}>全ユーザーをログアウト</button>
+            <button onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
             <ul>
               {usersList.map((u) => (
                 <li key={u.id}>{u.id} | {u.name} | 対戦数: {u.history.length}</li>
@@ -142,7 +165,12 @@ function App() {
 
           <div className="admin-section">
             <h3>抽選</h3>
-            <input type="number" min="1" value={drawCount} onChange={(e) => setDrawCount(Number(e.target.value))} />
+            <input
+              type="number"
+              min="1"
+              value={drawCount}
+              onChange={(e) => setDrawCount(Number(e.target.value))}
+            />
             <button onClick={handleDrawLots}>抽選する</button>
             <ul>
               {drawResult.map((u) => (
@@ -184,4 +212,19 @@ function App() {
       {showHistory && (
         <div className="history-modal">
           <h3>対戦履歴</h3>
-          <
+          <ul>
+            {history.map((h, i) => (
+              <li key={i}>
+                相手: {h.opponent} | {h.result} | 開始: {h.startTime} | 終了: {h.endTime}
+              </li>
+            ))}
+          </ul>
+          <button onClick={() => setShowHistory(false)}>閉じる</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
+export { socket };
