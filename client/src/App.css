@@ -257,3 +257,7 @@ body::before {
   z-index: 2;
 }
 
+/* 背景上で見やすい白文字用 */
+.text-on-background {
+  color: #fff;
+}
