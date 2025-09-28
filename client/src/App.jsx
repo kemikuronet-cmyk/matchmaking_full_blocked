@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
 
-// Socket を App 内で定義
 const socket = io(
   process.env.NODE_ENV === "production"
     ? window.location.origin
@@ -68,9 +67,7 @@ function App() {
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => setDrawResult(res));
 
-    return () => {
-      socket.off();
-    };
+    return () => socket.off();
   }, []);
 
   const handleLogin = () => {
@@ -102,7 +99,6 @@ function App() {
     window.location.reload();
   };
 
-  // 簡易管理者ログイン
   const handleAdminLogin = () => {
     if (adminPassword === "admin123") {
       setAdminMode(true);
@@ -111,29 +107,23 @@ function App() {
     }
   };
 
-  const handleToggleMatch = () => {
-    socket.emit("admin_toggle_match", { enable: !matchEnabled });
-  };
-
+  const handleToggleMatch = () => socket.emit("admin_toggle_match", { enable: !matchEnabled });
   const handleViewUsers = () => {
-    if (showUserList) {
-      setShowUserList(false);
-    } else {
+    if (showUserList) setShowUserList(false);
+    else {
       socket.emit("admin_view_users");
       setShowUserList(true);
     }
   };
-
   const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
-
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
   // --- レンダリング ---
   if (!loggedIn) {
     return (
       <div className="login-screen">
+        {/* 管理者ログインを一行表示 */}
         <div className="admin-login-topright">
-          <h4>管理者としてログイン</h4>
           <input
             type="password"
             value={adminPassword}
@@ -143,6 +133,7 @@ function App() {
           <button className="admin-btn" onClick={handleAdminLogin}>管理者ログイン</button>
         </div>
 
+        {/* ユーザーログイン */}
         <div className="user-login-center">
           <h2>ユーザーとしてログイン</h2>
           <input
@@ -200,7 +191,6 @@ function App() {
     );
   }
 
-  // ユーザーメニュー
   if (opponent) {
     return (
       <div className="battle-screen">
