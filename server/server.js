@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -31,15 +30,11 @@ io.on("connection", (socket) => {
     const now = new Date();
 
     if (sessionId) {
-      // 既存セッション復元
       user = users.find(u => u.sessionId === sessionId);
-      if (user) {
-        user.id = socket.id; // 新しいSocket IDに更新
-      }
+      if (user) user.id = socket.id;
     }
 
     if (!user) {
-      // 新規ユーザー
       user = {
         id: socket.id,
         name,
@@ -54,27 +49,20 @@ io.on("connection", (socket) => {
       users.push(user);
     }
 
-    socket.emit("login_ok", user);
-    console.log(`${name} がログイン（${user.sessionId}）`);
-
-    // 状態復元
-    if (user.status === "searching") {
-      socket.emit("searching_restore");
-    } else if (user.status === "matched" && user.opponentId) {
-      const opponent = users.find(u => u.id === user.opponentId);
-      if (opponent) {
-        socket.emit("matched", { opponent, deskNum: user.deskNum });
-      }
+    // 現在の対戦相手情報をセット
+    let currentOpponent = null;
+    if (user.status === "matched" && user.opponentId) {
+      const opp = users.find(u => u.id === user.opponentId);
+      if (opp) currentOpponent = { id: opp.id, name: opp.name };
     }
+
+    socket.emit("login_ok", { ...user, currentOpponent });
   });
 
   // --- 管理者ログイン ---
   socket.on("admin_login", ({ password }) => {
-    if (password === "admin123") {
-      socket.emit("admin_ok");
-    } else {
-      socket.emit("admin_fail");
-    }
+    if (password === "admin123") socket.emit("admin_ok");
+    else socket.emit("admin_fail");
   });
 
   // --- マッチング開始／停止 ---
@@ -158,7 +146,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // --- 管理者：ユーザー一覧 ---
+  // --- 管理者関連 ---
   socket.on("admin_view_users", () => {
     const list = users.map(u => ({
       id: u.id,
@@ -170,7 +158,6 @@ io.on("connection", (socket) => {
     socket.emit("admin_user_list", list);
   });
 
-  // --- 管理者：抽選 ---
   socket.on("admin_draw_lots", ({ count }) => {
     const now = new Date();
     const candidates = users.filter(u => {
@@ -182,18 +169,16 @@ io.on("connection", (socket) => {
 
     const shuffled = candidates.sort(() => 0.5 - Math.random());
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
-
     socket.emit("admin_draw_result", winners.map(u => ({ name: u.name })));
   });
 
-  // --- 管理者：全ユーザー強制ログアウト ---
   socket.on("admin_logout_all", () => {
     users.forEach(u => io.to(u.id).emit("force_logout"));
     users = [];
     matches = [];
   });
 
-  // --- ユーザーメニュー：対戦履歴 ---
+  // --- 対戦履歴 ---
   socket.on("request_history", () => {
     const user = users.find(u => u.id === socket.id);
     if (!user) return;
