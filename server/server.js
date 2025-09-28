@@ -2,6 +2,7 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
+const { v4: uuidv4 } = require("uuid"); // セッションID生成用
 
 const app = express();
 
@@ -29,20 +30,37 @@ io.on("connection", (socket) => {
 
   socket.emit("match_status", { enabled: matchEnabled });
 
-  // --- ログイン ---
-  socket.on("login", ({ name }) => {
+  // --- ログイン（セッション対応） ---
+  socket.on("login", ({ name, sessionId }) => {
+    if (!name || !name.trim()) return; // 空白禁止
+
+    let user;
     const now = new Date();
-    const user = {
-      id: socket.id,
-      name,
-      history: [],
-      recentOpponents: [],
-      loginTime: now,
-      searching: false
-    };
-    users.push(user);
+
+    if (sessionId) {
+      // 既存セッション復元
+      user = users.find(u => u.sessionId === sessionId);
+      if (user) {
+        user.id = socket.id; // 新しいSocket IDに更新
+      }
+    }
+
+    if (!user) {
+      // 新規ユーザー
+      user = {
+        id: socket.id,
+        name,
+        sessionId: uuidv4(),
+        history: [],
+        recentOpponents: [],
+        loginTime: now,
+        searching: false
+      };
+      users.push(user);
+    }
+
     socket.emit("login_ok", user);
-    console.log(`${name} がログイン`);
+    console.log(`${name} がログイン（${user.sessionId}）`);
   });
 
   // --- 管理者ログイン ---
@@ -56,7 +74,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // --- 管理者マッチング開始／停止 ---
+  // --- マッチング開始／停止 ---
   socket.on("admin_toggle_match", ({ enable }) => {
     matchEnabled = enable;
     io.emit("match_status", { enabled: matchEnabled });
@@ -144,11 +162,10 @@ io.on("connection", (socket) => {
 
     if (candidates.length === 0) return socket.emit("admin_draw_result", []);
 
-    // ランダム抽選
     const shuffled = candidates.sort(() => 0.5 - Math.random());
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
 
-    socket.emit("admin_draw_result", winners.map(u => ({ id: u.id, name: u.name })));
+    socket.emit("admin_draw_result", winners.map(u => ({ name: u.name })));
   });
 
   // --- 管理者：全ユーザー強制ログアウト ---
@@ -172,7 +189,6 @@ io.on("connection", (socket) => {
     matches = matches.filter(m => !m.includes(socket.id));
     socket.emit("force_logout");
   });
-
 });
 
 server.listen(PORT, "0.0.0.0", () => {
