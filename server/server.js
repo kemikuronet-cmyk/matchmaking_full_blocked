@@ -19,8 +19,8 @@ let users = [];
 let matches = {}; // deskNum -> [userId1, userId2]
 let matchEnabled = false;
 
+// 卓番号割り当て（空き番号を優先）
 function assignDeskNum() {
-  // 1番から順に空き番号を探す
   let deskNum = 1;
   while (matches[deskNum]) deskNum++;
   return deskNum;
@@ -58,7 +58,7 @@ io.on("connection", (socket) => {
       users.push(user);
     }
 
-    // 復元用の情報を構築
+    // 復元用情報
     let currentOpponent = null;
     if (user.opponentId) {
       const opponent = users.find(u => u.id === user.opponentId);
@@ -145,6 +145,8 @@ io.on("connection", (socket) => {
     user.history.push({ opponent: opponent.name, result: "win", startTime: now, endTime: now });
     opponent.history.push({ opponent: user.name, result: "lose", startTime: now, endTime: now });
 
+    const deskNum = user.deskNum;
+
     // 状態リセット
     user.status = "idle";
     user.opponentId = null;
@@ -154,8 +156,8 @@ io.on("connection", (socket) => {
     opponent.opponentId = null;
     opponent.deskNum = null;
 
-    const deskNum = Object.keys(matches).find(d => matches[d].includes(socket.id));
-    if (deskNum) delete matches[deskNum];
+    // 卓番号を解放
+    if (matches[deskNum]) delete matches[deskNum];
 
     socket.emit("return_to_menu_battle");
     io.to(opponent.id).emit("return_to_menu_battle");
@@ -205,7 +207,6 @@ io.on("connection", (socket) => {
     const userIndex = users.findIndex(u => u.id === socket.id);
     if (userIndex !== -1) users.splice(userIndex, 1);
 
-    // deskNumが一致するマッチを削除
     const deskNum = Object.keys(matches).find(d => matches[d].includes(socket.id));
     if (deskNum) delete matches[deskNum];
 
