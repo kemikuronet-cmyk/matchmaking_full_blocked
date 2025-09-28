@@ -1,38 +1,31 @@
+// server.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
-const { v4: uuidv4 } = require("uuid"); // セッションID生成用
+const { v4: uuidv4 } = require("uuid");
 
 const app = express();
-
-// クライアント配信
 app.use(express.static(path.join(__dirname, "../client/dist")));
-
-// ルートアクセスは index.html
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "../client/dist/index.html"));
 });
 
-// サーバー + Socket.IO
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
-
 const PORT = process.env.PORT || 4000;
 
-// --- データ管理 ---
 let users = [];
 let matches = [];
 let matchEnabled = false;
 
 io.on("connection", (socket) => {
   console.log("新しいクライアント接続:", socket.id);
-
   socket.emit("match_status", { enabled: matchEnabled });
 
-  // --- ログイン（セッション対応） ---
+  // --- ログイン ---
   socket.on("login", ({ name, sessionId }) => {
-    if (!name || !name.trim()) return; // 空白禁止
+    if (!name || !name.trim()) return;
 
     let user;
     const now = new Date();
@@ -54,23 +47,33 @@ io.on("connection", (socket) => {
         history: [],
         recentOpponents: [],
         loginTime: now,
-        searching: false
+        status: "idle",
+        opponentId: null,
+        deskNum: null,
       };
       users.push(user);
     }
 
     socket.emit("login_ok", user);
     console.log(`${name} がログイン（${user.sessionId}）`);
+
+    // 状態復元
+    if (user.status === "searching") {
+      socket.emit("searching_restore");
+    } else if (user.status === "matched" && user.opponentId) {
+      const opponent = users.find(u => u.id === user.opponentId);
+      if (opponent) {
+        socket.emit("matched", { opponent, deskNum: user.deskNum });
+      }
+    }
   });
 
   // --- 管理者ログイン ---
   socket.on("admin_login", ({ password }) => {
     if (password === "admin123") {
       socket.emit("admin_ok");
-      console.log("管理者ログイン成功");
     } else {
       socket.emit("admin_fail");
-      console.log("管理者ログイン失敗");
     }
   });
 
@@ -86,11 +89,13 @@ io.on("connection", (socket) => {
     const user = users.find(u => u.id === socket.id);
     if (!user) return;
 
-    user.searching = true;
+    user.status = "searching";
+    user.opponentId = null;
+    user.deskNum = null;
 
     const available = users.filter(u =>
       u.id !== socket.id &&
-      u.searching &&
+      u.status === "searching" &&
       !matches.some(m => m.includes(u.id)) &&
       !user.recentOpponents.includes(u.id)
     );
@@ -104,8 +109,12 @@ io.on("connection", (socket) => {
       user.recentOpponents.push(opponent.id);
       opponent.recentOpponents.push(user.id);
 
-      user.searching = false;
-      opponent.searching = false;
+      user.status = "matched";
+      opponent.status = "matched";
+      user.opponentId = opponent.id;
+      opponent.opponentId = user.id;
+      user.deskNum = deskNum;
+      opponent.deskNum = deskNum;
 
       io.to(socket.id).emit("matched", { opponent, deskNum });
       io.to(opponent.id).emit("matched", { opponent: user, deskNum });
@@ -114,7 +123,11 @@ io.on("connection", (socket) => {
 
   socket.on("cancel_find", () => {
     const user = users.find(u => u.id === socket.id);
-    if (user) user.searching = false;
+    if (user) {
+      user.status = "idle";
+      user.opponentId = null;
+      user.deskNum = null;
+    }
   });
 
   // --- 勝利報告 ---
@@ -131,8 +144,12 @@ io.on("connection", (socket) => {
       user.history.push({ opponent: opponent.name, result: "win", startTime: now, endTime: now });
       opponent.history.push({ opponent: user.name, result: "lose", startTime: now, endTime: now });
 
-      user.searching = false;
-      opponent.searching = false;
+      user.status = "idle";
+      opponent.status = "idle";
+      user.opponentId = null;
+      opponent.opponentId = null;
+      user.deskNum = null;
+      opponent.deskNum = null;
 
       socket.emit("return_to_menu_battle");
       io.to(opponentId).emit("return_to_menu_battle");
@@ -147,7 +164,8 @@ io.on("connection", (socket) => {
       id: u.id,
       name: u.name,
       history: u.history,
-      loginTime: u.loginTime || null
+      loginTime: u.loginTime || null,
+      status: u.status
     }));
     socket.emit("admin_user_list", list);
   });
