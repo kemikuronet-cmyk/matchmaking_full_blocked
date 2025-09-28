@@ -79,7 +79,7 @@ function App() {
   const handleAdminLogin = () => {
     if (adminPassword === "admin123") {
       setAdminMode(true);
-      setLoggedIn(true);  // ここを追加して管理者画面に遷移可能に
+      setLoggedIn(true);
     } else {
       alert("パスワードが間違っています");
     }
@@ -131,7 +131,9 @@ function App() {
             value={adminPassword}
             onChange={(e) => setAdminPassword(e.target.value)}
             placeholder="管理者パスワード"
-            onKeyDown={(e) => e.preventDefault()} // Enterでユーザーログインを阻止
+            onKeyDown={(e) => e.preventDefault()}
+            inputMode="latin"   // 半角英数字を優先
+            autoComplete="off"
           />
           <button className="admin-btn" onClick={handleAdminLogin}>管理者ログイン</button>
         </div>
