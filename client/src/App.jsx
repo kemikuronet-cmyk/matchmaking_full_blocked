@@ -43,12 +43,13 @@ function App() {
     socket.on("matched", ({ opponent, deskNum }) => {
       setOpponent(opponent);
       setDeskNum(deskNum);
-      setSearching(false); // 対戦開始で検索解除
+      setSearching(false);
     });
 
     socket.on("return_to_menu_battle", () => {
       setOpponent(null);
       setDeskNum("");
+      setSearching(false);
     });
 
     socket.on("force_logout", () => {
@@ -64,16 +65,29 @@ function App() {
     });
 
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
-    socket.on("admin_ok", () => setAdminMode(true));
+    socket.on("admin_ok", () => {
+      setAdminMode(true);
+      socket.emit("admin_view_users"); // 管理者ログイン時にユーザー一覧取得
+    });
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => setDrawResult(res));
 
     return () => socket.off();
   }, []);
 
-  const handleLogin = () => { if (!name) return; socket.emit("login", { name }); };
-  const handleAdminLogin = () => { if (adminPassword === "admin123") { setAdminMode(true); setLoggedIn(true); } else { alert("パスワードが間違っています"); }};
-  
+  const handleLogin = () => {
+    if (!name) return;
+    socket.emit("login", { name });
+  };
+
+  const handleAdminLogin = () => {
+    if (adminPassword === "admin123") {
+      socket.emit("admin_login", { password: adminPassword });
+    } else {
+      alert("パスワードが間違っています");
+    }
+  };
+
   const handleFindOpponent = () => {
     if (!matchEnabled) return;
     setSearching(true);
@@ -88,13 +102,24 @@ function App() {
   const handleWinReport = () => {
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
     socket.emit("report_win");
-    setSearching(false); // 対戦後は検索解除
+    setSearching(false);
   };
 
   const handleShowHistory = () => socket.emit("request_history");
-  const handleLogout = () => { if (!window.confirm("ログイン名、対戦履歴がリセットされます。ログアウトしますか？")) return; socket.emit("logout"); localStorage.removeItem("user"); window.location.reload(); };
+  const handleLogout = () => {
+    if (!window.confirm("ログイン名、対戦履歴がリセットされます。ログアウトしますか？")) return;
+    socket.emit("logout");
+    localStorage.removeItem("user");
+    window.location.reload();
+  };
   const handleToggleMatch = () => socket.emit("admin_toggle_match", { enable: !matchEnabled });
-  const handleViewUsers = () => { if (showUserList) setShowUserList(false); else { socket.emit("admin_view_users"); setShowUserList(true); }};
+  const handleViewUsers = () => {
+    if (showUserList) setShowUserList(false);
+    else {
+      socket.emit("admin_view_users");
+      setShowUserList(true);
+    }
+  };
   const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
@@ -128,14 +153,68 @@ function App() {
     );
   }
 
+  // --- 管理者画面 ---
   if (adminMode) {
     return (
       <div className="app app-background" style={commonStyle}>
-        {/* 管理者画面省略 (変更なし) */}
+        <div className="header">管理者画面</div>
+        <div className="admin-screen">
+          <div className="admin-section">
+            <button className="main-btn" onClick={handleToggleMatch}>
+              {matchEnabled ? "マッチング状態" : "マッチング開始"}
+            </button>
+          </div>
+          <div className="admin-section">
+            <button className="main-btn" onClick={handleViewUsers}>ユーザー一覧表示</button>
+            {showUserList && (
+              <table style={{ color: "white", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>名前</th>
+                    <th>対戦数</th>
+                    <th>勝</th>
+                    <th>敗</th>
+                    <th>ログイン時間</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usersList.map((u) => {
+                    const win = u.history ? u.history.filter(h => h.result === "win").length : 0;
+                    const lose = u.history ? u.history.filter(h => h.result === "lose").length : 0;
+                    const loginTime = u.loginTime ? new Date(u.loginTime).toLocaleString() : "未ログイン";
+                    return (
+                      <tr key={u.id}>
+                        <td>{u.id}</td>
+                        <td>{u.name}</td>
+                        <td>{u.history ? u.history.length : 0}</td>
+                        <td>{win}</td>
+                        <td>{lose}</td>
+                        <td>{loginTime}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+            <button className="main-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
+          </div>
+          <div className="admin-section">
+            <h3>抽選</h3>
+            <input type="number" min="1" value={drawCount} onChange={(e) => setDrawCount(Number(e.target.value))} />
+            <button className="main-btn" onClick={handleDrawLots}>抽選する</button>
+            <ul>
+              {drawResult.map((u) => (
+                <li key={u.id}>{u.id} | {u.name}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
     );
   }
 
+  // --- 対戦中画面 ---
   if (opponent) {
     return (
       <div className="battle-screen app-background" style={commonStyle}>
@@ -146,6 +225,7 @@ function App() {
     );
   }
 
+  // --- ユーザーメニュー ---
   return (
     <div className="app app-background" style={commonStyle}>
       <div className="header">{user?.name}</div>
