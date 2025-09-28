@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
 
-// Socket の定義
+// Socket を App 内で定義
 const socket = io(
   process.env.NODE_ENV === "production"
     ? window.location.origin
@@ -16,12 +16,15 @@ function App() {
   const [searching, setSearching] = useState(false);
   const [opponent, setOpponent] = useState(null);
   const [deskNum, setDeskNum] = useState("");
-  const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [adminMode, setAdminMode] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [usersList, setUsersList] = useState([]);
   const [matchEnabled, setMatchEnabled] = useState(false);
+  const [showUserList, setShowUserList] = useState(false);
+  const [drawCount, setDrawCount] = useState(1);
+  const [drawResult, setDrawResult] = useState([]);
 
   // --- Socket イベント ---
   useEffect(() => {
@@ -33,7 +36,6 @@ function App() {
       setLoggedIn(true);
     }
 
-    // Socket イベント登録
     socket.on("login_ok", (u) => {
       setUser(u);
       setLoggedIn(true);
@@ -43,7 +45,6 @@ function App() {
     socket.on("matched", ({ opponent, deskNum }) => {
       setOpponent(opponent);
       setDeskNum(deskNum);
-      setSearching(false);
     });
 
     socket.on("return_to_menu_battle", () => {
@@ -67,6 +68,7 @@ function App() {
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
     socket.on("admin_ok", () => setAdminMode(true));
     socket.on("admin_user_list", (list) => setUsersList(list));
+    socket.on("admin_draw_result", (res) => setDrawResult(res));
 
     return () => {
       socket.off();
@@ -74,8 +76,7 @@ function App() {
   }, []);
 
   // --- イベントハンドラ ---
-  const handleLogin = (e) => {
-    e.preventDefault();
+  const handleLogin = () => {
     if (!name) return;
     socket.emit("login", { name });
   };
@@ -90,24 +91,43 @@ function App() {
     }
   };
 
+  const handleWinReport = () => {
+    if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
+    socket.emit("report_win");
+  };
+
   const handleShowHistory = () => socket.emit("request_history");
+
   const handleLogout = () => {
-    if (!window.confirm("ログアウトしますか？")) return;
+    if (!window.confirm("ログイン名、対戦履歴がリセットされます。ログアウトしますか？")) return;
     socket.emit("logout");
     localStorage.removeItem("user");
     window.location.reload();
   };
 
   const handleAdminLogin = () => socket.emit("admin_login", { password: adminPassword });
-  const handleToggleMatch = (enable) => socket.emit("admin_toggle_match", { enable });
-  const handleViewUsers = () => socket.emit("admin_view_users");
+
+  const handleToggleMatch = () => {
+    socket.emit("admin_toggle_match", { enable: !matchEnabled });
+  };
+
+  const handleViewUsers = () => {
+    if (showUserList) {
+      setShowUserList(false);
+    } else {
+      socket.emit("admin_view_users");
+      setShowUserList(true);
+    }
+  };
+
+  const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
+
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
   // --- レンダリング ---
-  if (!loggedIn && !adminMode) {
+  if (!loggedIn) {
     return (
       <div className="login-screen">
-        {/* 管理者ログイン右上 */}
         <div className="admin-login-topright">
           <h4>管理者としてログイン</h4>
           <input
@@ -116,22 +136,18 @@ function App() {
             onChange={(e) => setAdminPassword(e.target.value)}
             placeholder="管理者パスワード"
           />
-          <button className="green-btn" onClick={handleAdminLogin}>管理者ログイン</button>
+          <button onClick={handleAdminLogin}>管理者ログイン</button>
         </div>
 
-        {/* ユーザーとしてログイン中央 */}
         <div className="user-login-center">
           <h2>ユーザーとしてログイン</h2>
-          <form onSubmit={handleLogin}>
-            <input
-              type="text"
-              name="username"
-              placeholder="ユーザー名"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <button className="green-btn" type="submit">ログイン</button>
-          </form>
+          <input
+            type="text"
+            placeholder="ユーザー名"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button onClick={handleLogin}>ログイン</button>
         </div>
       </div>
     );
@@ -143,19 +159,35 @@ function App() {
         <div className="header">管理者画面</div>
         <div className="admin-screen">
           <div className="admin-section">
-            <h3>マッチング操作</h3>
-            <button className="green-btn" onClick={() => handleToggleMatch(true)}>マッチング開始</button>
-            <button className="green-btn" onClick={() => handleToggleMatch(false)}>マッチング終了</button>
-            <div>{matchEnabled ? "マッチング状態" : "マッチング受付時間外"}</div>
+            <button onClick={handleToggleMatch}>
+              {matchEnabled ? "マッチング状態" : "マッチング開始"}
+            </button>
           </div>
 
           <div className="admin-section">
-            <h3>ユーザー管理</h3>
-            <button className="green-btn" onClick={handleViewUsers}>ユーザー一覧表示</button>
-            <button className="green-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
+            <button onClick={handleViewUsers}>ユーザー一覧表示</button>
+            {showUserList && (
+              <ul>
+                {usersList.map((u) => (
+                  <li key={u.id}>{u.id} | {u.name} | 対戦数: {u.history.length}</li>
+                ))}
+              </ul>
+            )}
+            <button onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
+          </div>
+
+          <div className="admin-section">
+            <h3>抽選</h3>
+            <input
+              type="number"
+              min="1"
+              value={drawCount}
+              onChange={(e) => setDrawCount(Number(e.target.value))}
+            />
+            <button onClick={handleDrawLots}>抽選する</button>
             <ul>
-              {usersList.map((u) => (
-                <li key={u.id}>{u.id} | {u.name} | 対戦数: {u.history.length}</li>
+              {drawResult.map((u) => (
+                <li key={u.id}>{u.id} | {u.name}</li>
               ))}
             </ul>
           </div>
@@ -164,27 +196,32 @@ function App() {
     );
   }
 
+  // --- ユーザーメニュー ---
+  if (opponent) {
+    // マッチング専用画面
+    return (
+      <div className="battle-screen">
+        <h3>対戦相手: {opponent.name}</h3>
+        <div>卓番号: {deskNum}</div>
+        <button onClick={handleWinReport}>勝利報告</button>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
-      <div className="user-menu-center">
+      <div className="header">{user?.name}</div>
+      <div className="menu-screen">
         {matchEnabled ? (
-          <button className="green-btn" onClick={handleFindOpponent}>
+          <button onClick={handleFindOpponent}>
             {searching ? "対戦相手を探しています…" : "対戦相手を探す"}
           </button>
         ) : (
           <div className="match-disabled">マッチング受付時間外です</div>
         )}
-        <button className="green-btn" onClick={handleShowHistory}>対戦履歴</button>
-        <button className="green-btn" onClick={handleLogout}>ログアウト</button>
+        <button onClick={handleShowHistory}>対戦履歴を確認する</button>
+        <button onClick={handleLogout}>ログアウト</button>
       </div>
-
-      {opponent && (
-        <div className="battle-screen">
-          <h3>対戦相手: {opponent.name}</h3>
-          <div>卓番号: {deskNum}</div>
-          <button className="green-btn" onClick={() => socket.emit("report_win")}>勝利報告</button>
-        </div>
-      )}
 
       {showHistory && (
         <div className="history-modal">
@@ -196,7 +233,7 @@ function App() {
               </li>
             ))}
           </ul>
-          <button className="green-btn" onClick={() => setShowHistory(false)}>閉じる</button>
+          <button onClick={() => setShowHistory(false)}>閉じる</button>
         </div>
       )}
     </div>
