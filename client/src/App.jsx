@@ -16,7 +16,7 @@ function App() {
 
   const [searching, setSearching] = useState(false);
   const [opponent, setOpponent] = useState(null);
-  const [deskNum, setDeskNum] = useState("");
+  const [deskNum, setDeskNum] = useState(null);
 
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -31,6 +31,7 @@ function App() {
 
   // --- Socket.io イベント ---
   useEffect(() => {
+    // ページ更新後の自動再ログイン
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       const u = JSON.parse(savedUser);
@@ -44,16 +45,16 @@ function App() {
       setLoggedIn(true);
       localStorage.setItem("user", JSON.stringify(u));
 
-      // --- 復元情報 ---
+      // 状態復元
       if (u.status === "searching") setSearching(true);
       else setSearching(false);
 
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
-        setDeskNum(u.deskNum || "");
+        setDeskNum(u.deskNum);
       } else {
         setOpponent(null);
-        setDeskNum("");
+        setDeskNum(null);
       }
     });
 
@@ -63,11 +64,9 @@ function App() {
       setSearching(false);
     });
 
-    socket.on("searching_restore", () => setSearching(true));
-
     socket.on("return_to_menu_battle", () => {
       setOpponent(null);
-      setDeskNum("");
+      setDeskNum(null);
       setSearching(false);
     });
 
@@ -78,7 +77,7 @@ function App() {
       setUser(null);
       setSearching(false);
       setOpponent(null);
-      setDeskNum("");
+      setDeskNum(null);
     });
 
     socket.on("history", (hist) => {
@@ -121,14 +120,14 @@ function App() {
   const handleWinReport = () => {
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
     socket.emit("report_win");
-    setSearching(false);
     setOpponent(null);
-    setDeskNum("");
+    setDeskNum(null);
+    setSearching(false);
   };
 
   const handleShowHistory = () => socket.emit("request_history");
   const handleLogout = () => {
-    if (!window.confirm("ログイン名、対戦履歴がリセットされます。ログアウトしますか？")) return;
+    if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
     localStorage.removeItem("user");
     window.location.reload();
@@ -142,7 +141,6 @@ function App() {
       setShowUserList(true);
     }
   };
-
   const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
