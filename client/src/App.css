@@ -1,106 +1,103 @@
-// client/src/App.jsx
-import React, { useState, useEffect } from 'react';
-import { io } from 'socket.io-client';
-import './App.css';
-
-const socket = io('http://localhost:4000');
-
-function App() {
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [wins, setWins] = useState(0);
-  const [opponent, setOpponent] = useState(null);
-  const [searching, setSearching] = useState(false);
-
-  useEffect(() => {
-    socket.on('login_ok', (data) => {
-      setUserName(data.name);
-      setWins(data.points || 0);
-      setLoggedIn(true);
-    });
-
-    socket.on('matched', (data) => {
-      setOpponent(data.opponent);
-      setSearching(false);
-    });
-
-    socket.on('history', (data) => {
-      const winCount = data.history.filter(h => h.result === 'win').length;
-      setWins(winCount);
-    });
-
-    return () => {
-      socket.off('login_ok');
-      socket.off('matched');
-      socket.off('history');
-    };
-  }, []);
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    const name = e.target.username.value.trim();
-    if (name) socket.emit('login', { name });
-  };
-
-  const handleFindOpponent = () => {
-    if (searching) {
-      setSearching(false);
-      socket.emit('cancel_find'); // サーバーにキャンセル通知
-    } else {
-      setSearching(true);
-      socket.emit('find_opponent');
-    }
-  };
-
-  const handleWinReport = () => {
-    if (!opponent) return;
-    socket.emit('report_win', { opponentId: opponent.id });
-    setOpponent(null);
-  };
-
-  const handleLoseReport = () => {
-    if (!opponent) return;
-    socket.emit('report_loss', { opponentId: opponent.id });
-    setOpponent(null);
-  };
-
-  if (!loggedIn) {
-    return (
-      <div className="login-screen">
-        <h2>ログイン</h2>
-        <form onSubmit={handleLogin}>
-          <input type="text" name="username" placeholder="ユーザー名" />
-          <button type="submit">ログイン</button>
-        </form>
-      </div>
-    );
-  }
-
-  return (
-    <div className="app">
-      <div className="header">
-        <div className="username">{userName}</div>
-        <div className="wins">{wins}勝</div>
-      </div>
-
-      {!opponent ? (
-        <div className="menu-screen">
-          <button onClick={handleFindOpponent}>
-            {searching ? '対戦相手を探しています… (クリックでキャンセル)' : '対戦相手を探す'}
-          </button>
-          <button onClick={() => socket.emit('request_history')} disabled={searching}>
-            対戦履歴を確認する
-          </button>
-        </div>
-      ) : (
-        <div className="battle-screen">
-          <h3>対戦相手: {opponent.name}</h3>
-          <button onClick={handleWinReport}>勝利報告</button>
-          <button onClick={handleLoseReport}>代理で勝利報告（相手の勝ち）</button>
-        </div>
-      )}
-    </div>
-  );
+/* 全体 */
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: Arial, sans-serif;
+  background-color: #fff;
 }
 
-export default App;
+/* App全体 */
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+/* ヘッダー */
+.header {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  font-weight: bold;
+  font-size: 20px;
+  background-color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  z-index: 100;
+}
+
+.header .wins {
+  font-size: 14px;
+}
+
+/* ボタン */
+button {
+  padding: 12px 30px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background-color: green; /* 緑色に変更 */
+}
+button:hover {
+  opacity: 0.9;
+}
+
+/* ===== ログイン画面 ===== */
+.login-screen {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* 縦中央 */
+  align-items: center;     /* 横中央 */
+  gap: 15px;
+  position: relative;
+}
+
+.login-screen form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 管理者ログインを右上に小さく */
+.admin-login-topright {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #f9f9f9;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-end;
+}
+.admin-login-topright input {
+  font-size: 12px;
+  padding: 4px 6px;
+  width: 130px;
+}
+
+/* メニュー・バトル画面 */
+.menu-screen, .battle-screen {
+  margin-top: 100px; /* ヘッダーと被らないように調整 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+/* 対戦相手情報 */
+.battle-screen h3 {
+  margin-bottom: 10px;
+}
