@@ -1,4 +1,3 @@
-/* 全体 */
 body, html {
   margin: 0;
   padding: 0;
@@ -7,116 +6,60 @@ body, html {
   background-color: #fff;
 }
 
-/* App全体 */
-.app {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-}
-
-/* ヘッダー */
-.header {
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  font-weight: bold;
-  font-size: 20px;
-  background-color: #fff;
-  padding: 10px 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-  z-index: 100;
-}
-
-.header .wins {
-  font-size: 14px;
-}
-
-/* ボタン */
-button {
-  padding: 12px 30px;
-  font-size: 16px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
+/* ボタン共通 */
+button.green-btn {
+  background-color: #4CAF50;
   color: #fff;
-  background-color: green; /* 緑色に変更 */
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  margin: 5px 0;
 }
-button:hover {
+
+button.green-btn:hover {
   opacity: 0.9;
 }
 
-/* ログイン画面全体 */
-.login-screen {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start; /* 上寄せ */
-  height: 100vh; /* 画面全体に高さを確保 */
-  padding-top: 150px; /* 上からの余白 */
-  gap: 20px;
-}
-
-/* フォーム内を縦並びに */
-.login-screen form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px; /* input と button の間隔 */
-  align-items: center;
-}
-
-/* ボタン共通: 緑色 */
-button {
-  background-color: #4CAF50; /* 緑色 */
-  color: white;
-  padding: 10px 20px;
-  margin: 5px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 1em;
-}
-
-button:hover {
-  opacity: 0.8;
-}
-
-
-
-/* 管理者ログインを右上に小さく */
+/* 管理者ログイン右上（小さく） */
 .admin-login-topright {
   position: absolute;
   top: 10px;
   right: 10px;
-  background: #f9f9f9;
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  font-size: 12px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
   align-items: flex-end;
-}
-.admin-login-topright input {
+  gap: 3px;
   font-size: 12px;
-  padding: 4px 6px;
-  width: 130px;
 }
 
-/* メニュー・バトル画面 */
-.menu-screen, .battle-screen {
-  margin-top: 100px; /* ヘッダーと被らないように調整 */
+.admin-login-topright input {
+  width: 120px;
+  padding: 4px;
+  font-size: 12px;
+}
+
+/* ユーザーログイン中央 */
+.user-login-center {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ユーザーメニュー画面中央上寄せ */
+.user-menu-center {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 15px;
-}
-
-/* 対戦相手情報 */
-.battle-screen h3 {
-  margin-bottom: 10px;
 }
