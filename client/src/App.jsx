@@ -28,13 +28,13 @@ function App() {
 
   // --- Socket.io イベント ---
   useEffect(() => {
+    // ページ更新後の自動再ログイン
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       const u = JSON.parse(savedUser);
       setUser(u);
       setLoggedIn(true);
-      // 再ログイン
-      socket.emit("login", { name: u.name });
+      socket.emit("login", { name: u.name, sessionId: u.sessionId });
     }
 
     socket.on("login_ok", (u) => {
@@ -126,7 +126,6 @@ function App() {
   };
 
   const handleToggleMatch = () => {
-    console.log("toggle match button pressed");
     socket.emit("admin_toggle_match", { enable: !matchEnabled });
   };
 
@@ -222,7 +221,7 @@ function App() {
             />
             <button className="main-btn" onClick={handleDrawLots}>抽選する</button>
             <ul>
-              {drawResult.map(u => <li key={u.id}>{u.name}</li>)}
+              {drawResult.map((u, i) => <li key={i}>{u.name}</li>)}
             </ul>
           </div>
         </div>
