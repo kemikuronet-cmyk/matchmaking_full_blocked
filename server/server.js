@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -15,10 +14,19 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 const PORT = process.env.PORT || 4000;
 
+// --- データ管理 ---
 let users = [];
-let matches = [];
+let matches = {}; // deskNum -> [userId1, userId2]
 let matchEnabled = false;
 
+function assignDeskNum() {
+  // 1番から順に空き番号を探す
+  let deskNum = 1;
+  while (matches[deskNum]) deskNum++;
+  return deskNum;
+}
+
+// --- 接続 ---
 io.on("connection", (socket) => {
   console.log("新しいクライアント接続:", socket.id);
   socket.emit("match_status", { enabled: matchEnabled });
@@ -46,19 +54,18 @@ io.on("connection", (socket) => {
         status: "idle",
         opponentId: null,
         deskNum: null,
-        currentOpponent: null,
       };
       users.push(user);
     }
 
-    // ログイン成功時に currentOpponent を返す
-    let payload = { ...user };
-    if (user.status === "matched" && user.opponentId) {
+    // 復元用の情報を構築
+    let currentOpponent = null;
+    if (user.opponentId) {
       const opponent = users.find(u => u.id === user.opponentId);
-      if (opponent) payload.currentOpponent = { id: opponent.id, name: opponent.name };
+      if (opponent) currentOpponent = { id: opponent.id, name: opponent.name };
     }
 
-    socket.emit("login_ok", payload);
+    socket.emit("login_ok", { ...user, currentOpponent, deskNum: user.deskNum });
     console.log(`${name} がログイン（${user.sessionId}）`);
   });
 
@@ -88,20 +95,19 @@ io.on("connection", (socket) => {
     user.status = "searching";
     user.opponentId = null;
     user.deskNum = null;
-    user.currentOpponent = null;
 
     const available = users.filter(u =>
       u.id !== socket.id &&
       u.status === "searching" &&
-      !matches.some(m => m.includes(u.id)) &&
+      !Object.values(matches).some(m => m.includes(u.id)) &&
       !user.recentOpponents.includes(u.id)
     );
 
     if (available.length > 0) {
       const opponent = available[0];
-      const match = [socket.id, opponent.id];
-      matches.push(match);
-      const deskNum = matches.length;
+      const deskNum = assignDeskNum();
+
+      matches[deskNum] = [socket.id, opponent.id];
 
       user.recentOpponents.push(opponent.id);
       opponent.recentOpponents.push(user.id);
@@ -113,11 +119,8 @@ io.on("connection", (socket) => {
       user.deskNum = deskNum;
       opponent.deskNum = deskNum;
 
-      user.currentOpponent = { id: opponent.id, name: opponent.name };
-      opponent.currentOpponent = { id: user.id, name: user.name };
-
-      io.to(socket.id).emit("matched", { opponent: user.currentOpponent, deskNum });
-      io.to(opponent.id).emit("matched", { opponent: opponent.currentOpponent, deskNum });
+      io.to(socket.id).emit("matched", { opponent: { id: opponent.id, name: opponent.name }, deskNum });
+      io.to(opponent.id).emit("matched", { opponent: { id: user.id, name: user.name }, deskNum });
     }
   });
 
@@ -127,38 +130,35 @@ io.on("connection", (socket) => {
       user.status = "idle";
       user.opponentId = null;
       user.deskNum = null;
-      user.currentOpponent = null;
     }
   });
 
   // --- 勝利報告 ---
   socket.on("report_win", () => {
-    const match = matches.find(m => m.includes(socket.id));
-    if (!match) return;
-
-    const opponentId = match.find(id => id !== socket.id);
     const user = users.find(u => u.id === socket.id);
-    const opponent = users.find(u => u.id === opponentId);
+    if (!user || !user.opponentId || !user.deskNum) return;
 
-    if (user && opponent) {
-      const now = new Date();
-      user.history.push({ opponent: opponent.name, result: "win", startTime: now, endTime: now });
-      opponent.history.push({ opponent: user.name, result: "lose", startTime: now, endTime: now });
+    const opponent = users.find(u => u.id === user.opponentId);
+    if (!opponent) return;
 
-      user.status = "idle";
-      opponent.status = "idle";
-      user.opponentId = null;
-      opponent.opponentId = null;
-      user.deskNum = null;
-      opponent.deskNum = null;
-      user.currentOpponent = null;
-      opponent.currentOpponent = null;
+    const now = new Date();
+    user.history.push({ opponent: opponent.name, result: "win", startTime: now, endTime: now });
+    opponent.history.push({ opponent: user.name, result: "lose", startTime: now, endTime: now });
 
-      socket.emit("return_to_menu_battle");
-      io.to(opponentId).emit("return_to_menu_battle");
+    // 状態リセット
+    user.status = "idle";
+    user.opponentId = null;
+    user.deskNum = null;
 
-      matches = matches.filter(m => m !== match);
-    }
+    opponent.status = "idle";
+    opponent.opponentId = null;
+    opponent.deskNum = null;
+
+    const deskNum = Object.keys(matches).find(d => matches[d].includes(socket.id));
+    if (deskNum) delete matches[deskNum];
+
+    socket.emit("return_to_menu_battle");
+    io.to(opponent.id).emit("return_to_menu_battle");
   });
 
   // --- 管理者：ユーザー一覧 ---
@@ -180,12 +180,9 @@ io.on("connection", (socket) => {
       const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
       return u.loginTime <= twoHoursAgo || (u.history?.length || 0) >= 5;
     });
-
     if (candidates.length === 0) return socket.emit("admin_draw_result", []);
-
     const shuffled = candidates.sort(() => 0.5 - Math.random());
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
-
     socket.emit("admin_draw_result", winners.map(u => ({ name: u.name })));
   });
 
@@ -193,10 +190,10 @@ io.on("connection", (socket) => {
   socket.on("admin_logout_all", () => {
     users.forEach(u => io.to(u.id).emit("force_logout"));
     users = [];
-    matches = [];
+    matches = {};
   });
 
-  // --- ユーザーメニュー：対戦履歴 ---
+  // --- 対戦履歴 ---
   socket.on("request_history", () => {
     const user = users.find(u => u.id === socket.id);
     if (!user) return;
@@ -207,7 +204,11 @@ io.on("connection", (socket) => {
   socket.on("logout", () => {
     const userIndex = users.findIndex(u => u.id === socket.id);
     if (userIndex !== -1) users.splice(userIndex, 1);
-    matches = matches.filter(m => !m.includes(socket.id));
+
+    // deskNumが一致するマッチを削除
+    const deskNum = Object.keys(matches).find(d => matches[d].includes(socket.id));
+    if (deskNum) delete matches[deskNum];
+
     socket.emit("force_logout");
   });
 });
