@@ -30,6 +30,9 @@ function App() {
   const [lotteryWinner, setLotteryWinner] = useState(false);
   const [lotteryList, setLotteryList] = useState([]);
 
+  const [filterBattleCount, setFilterBattleCount] = useState(0);
+  const [filterLoginTime, setFilterLoginTime] = useState(0);
+
   const loginAttempted = useRef(false);
 
   useEffect(() => {
@@ -100,7 +103,6 @@ function App() {
     return () => socket.off();
   }, []);
 
-  // --- ハンドラ ---
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
@@ -148,7 +150,7 @@ function App() {
       setShowUserList(true);
     }
   };
-  const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
+  const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount, minBattles: filterBattleCount, minLoginHours: filterLoginTime });
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
   // --- レンダリング ---
@@ -164,7 +166,7 @@ function App() {
           />
           <button className="admin-btn" onClick={handleAdminLogin}>管理者ログイン</button>
         </div>
-        <div className="user-login-center">
+        <div className="user-login-center top-align">
           <h2>ユーザーとしてログイン</h2>
           <input
             type="text"
@@ -216,6 +218,11 @@ function App() {
           </div>
           <div className="admin-section">
             <h3>抽選</h3>
+            <label>対戦数以上：</label>
+            <input type="number" min="0" value={filterBattleCount} onChange={(e) => setFilterBattleCount(Number(e.target.value))} />
+            <label>ログイン時間（時間以上）：</label>
+            <input type="number" min="0" value={filterLoginTime} onChange={(e) => setFilterLoginTime(Number(e.target.value))} />
+            <label>当選人数：</label>
             <input
               type="number"
               min="1"
