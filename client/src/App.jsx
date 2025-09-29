@@ -251,7 +251,7 @@ function App() {
         {!matchEnabled && <div className="match-disabled">マッチング受付時間外です</div>}
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
-        {/* 対戦履歴（連番・相手・結果） */}
+        {/* 対戦履歴 */}
         {history.length > 0 && (
           <div className="history-list">
             <h4>対戦履歴</h4>
@@ -278,6 +278,7 @@ function App() {
           </div>
         )}
 
+        {/* 抽選当選者 */}
         {lotteryList.length > 0 && (
           <div style={{marginTop:"15px", color:"yellow"}}>
             <h4>抽選当選者一覧</h4>
