@@ -35,15 +35,13 @@ io.on("connection", (socket) => {
   // --- ログイン ---
   socket.on("login", ({ name, sessionId }) => {
     if (!name || !name.trim()) return;
-
-    let user;
     const now = new Date();
 
+    let user;
     if (sessionId) {
       user = users.find(u => u.sessionId === sessionId);
       if (user) user.id = socket.id;
     }
-
     if (!user) {
       user = {
         id: socket.id,
@@ -59,18 +57,21 @@ io.on("connection", (socket) => {
       users.push(user);
     }
 
-    // 復元用情報
     let currentOpponent = null;
     if (user.opponentSessionId) {
       const opponent = users.find(u => u.sessionId === user.opponentSessionId);
       if (opponent) currentOpponent = { id: opponent.id, name: opponent.name };
     }
 
-    // 当選フラグ
     const isWinner = lotteryWinners.includes(user.sessionId);
+    socket.emit("login_ok", {
+      ...user,
+      currentOpponent,
+      deskNum: user.deskNum,
+      lotteryWinner: isWinner
+    });
 
-    socket.emit("login_ok", { ...user, currentOpponent, deskNum: user.deskNum, lotteryWinner: isWinner });
-    console.log(`${name} がログイン（${user.sessionId}）`);
+    console.log(`${user.name} がログイン（${user.sessionId}）`);
   });
 
   // --- 管理者ログイン ---
@@ -151,7 +152,6 @@ io.on("connection", (socket) => {
 
     const deskNum = user.deskNum;
 
-    // 状態リセット
     user.status = "idle";
     user.opponentSessionId = null;
     user.deskNum = null;
@@ -173,17 +173,52 @@ io.on("connection", (socket) => {
       name: u.name,
       history: u.history,
       loginTime: u.loginTime || null,
-      status: u.status
+      status: u.status,
+      deskNum: u.deskNum
     }));
     socket.emit("admin_user_list", list);
   });
 
-  // --- 管理者：抽選 ---
-  socket.on("admin_draw_lots", ({ count }) => {
+  // --- 管理者：強制マッチング解除（マッチング解除ボタン） ---
+  socket.on("admin_force_unmatch", ({ userId }) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+
+    const opponent = targetUser.opponentSessionId
+      ? users.find(u => u.sessionId === targetUser.opponentSessionId)
+      : null;
+    const deskNum = targetUser.deskNum;
+
+    targetUser.status = "idle";
+    targetUser.opponentSessionId = null;
+    targetUser.deskNum = null;
+    io.to(targetUser.id).emit("return_to_menu_battle");
+
+    if (opponent) {
+      opponent.status = "idle";
+      opponent.opponentSessionId = null;
+      opponent.deskNum = null;
+      io.to(opponent.id).emit("return_to_menu_battle");
+    }
+
+    if (deskNum && matches[deskNum]) delete matches[deskNum];
+
+    console.log(`管理者が ${targetUser.name} のマッチングを解除しました`);
+  });
+
+  // --- 管理者：抽選（条件付き） ---
+  socket.on("admin_draw_lots", ({ count, minMatches, minLoginTime }) => {
     const now = new Date();
+    const minMatchNum = minMatches ?? 0;
+    const minLoginMinutes = minLoginTime ?? 0;
+
     const candidates = users.filter(u => {
-      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-      return u.loginTime <= twoHoursAgo || (u.history?.length || 0) >= 5;
+      const loginOk =
+        !minLoginMinutes ||
+        (u.loginTime && (now - new Date(u.loginTime)) / (1000 * 60) >= minLoginMinutes);
+      const matchOk =
+        !minMatchNum || ((u.history?.length || 0) >= minMatchNum);
+      return loginOk && matchOk;
     });
 
     if (candidates.length === 0) return socket.emit("admin_draw_result", []);
@@ -192,16 +227,12 @@ io.on("connection", (socket) => {
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
     lotteryWinners = winners.map(u => u.sessionId);
 
-    // 全ユーザーに当選者リスト送信
     const winnerNames = winners.map(u => ({ name: u.name }));
     users.forEach(u => io.to(u.id).emit("update_lottery_list", winnerNames));
-
-    // 当選者に通知
-    winners.forEach(u => {
-      const s = users.find(us => us.sessionId === u.sessionId);
+    winners.forEach(w => {
+      const s = users.find(us => us.sessionId === w.sessionId);
       if (s) io.to(s.id).emit("lottery_winner");
     });
-
     socket.emit("admin_draw_result", winnerNames);
   });
 
@@ -224,10 +255,11 @@ io.on("connection", (socket) => {
   socket.on("logout", () => {
     const userIndex = users.findIndex(u => u.id === socket.id);
     if (userIndex !== -1) users.splice(userIndex, 1);
-
-    const deskNum = Object.keys(matches).find(d => matches[d].includes(userIndex));
-    if (deskNum) delete matches[deskNum];
-
+    // matchesからも抜く
+    for (const d in matches) {
+      matches[d] = matches[d].filter(sid => sid !== socket.id);
+      if (matches[d].length === 0) delete matches[d];
+    }
     socket.emit("force_logout");
   });
 });
