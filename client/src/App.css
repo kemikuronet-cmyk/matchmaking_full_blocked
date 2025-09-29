@@ -1,9 +1,8 @@
 /* 全体設定 */
 body, html {
-  margin:0; padding:0;
-  height:100%;
+  margin: 0; padding: 0;
+  height: 100%;
   font-family: Arial, sans-serif;
-  background: url("/images/background.jpg") center/cover no-repeat;
   position: relative;
 }
 
@@ -19,53 +18,170 @@ body::before {
 }
 
 /* Appコンテナ */
-.app { display:flex; flex-direction:column; align-items:center; text-align:center; padding-top:80px; position:relative; z-index:1; }
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-top: 80px;
+  position: relative;
+  z-index:1;
+}
 
 /* ヘッダー */
 .header {
-  position: fixed; top:20px; left:50%;
+  position: fixed;
+  top: 20px;
+  left: 50%;
   transform: translateX(-50%);
-  background-color:#fff; padding:10px 20px;
-  border-radius:8px; font-weight:bold; font-size:20px;
-  box-shadow:0 2px 6px rgba(0,0,0,0.2); z-index:100;
+  background-color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  z-index: 100;
 }
 
 /* 共通ボタン */
 .main-btn {
-  background-color:#4CAF50; color:#fff;
-  border:none; border-radius:8px; padding:12px 24px;
-  font-size:16px; cursor:pointer; margin:8px 0;
-  transition: opacity 0.2s; position:relative; z-index:2;
+  background-color: #4CAF50;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 16px;
+  cursor: pointer;
+  margin: 8px 0;
+  transition: opacity 0.2s;
+  position: relative;
+  z-index: 2;
 }
 .main-btn:hover { opacity:0.9; }
 
-.admin-btn { background-color:#f44336; color:#fff; border:none; border-radius:5px; padding:4px 10px; font-size:12px; cursor:pointer; z-index:2; }
+.admin-btn {
+  background-color: #f44336;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 2;
+}
 .admin-btn:hover { opacity:0.9; }
 
 /* ログイン画面 */
-.login-screen { height:100vh; display:flex; justify-content:flex-start; align-items:flex-start; flex-direction:column; position:relative; gap:40px; padding-top:60px; z-index:1; }
+.login-screen {
+  height: 100vh;
+  display: flex;
+  justify-content: center;  /* 中央横寄せ */
+  align-items: flex-start;  /* 上寄せ */
+  flex-direction: column;
+  position: relative;
+  gap: 40px;
+  padding-top: 80px;       /* 上余白を確保 */
+  z-index: 1;
+}
 
-.user-login-center { display:flex; flex-direction:column; align-items:center; gap:12px; z-index:2; margin:0 auto; }
+.user-login-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 2;
+  margin: 0 auto;
+}
 
-.user-login-center input { background-color:white; color:black; padding:6px; border-radius:4px; border:1px solid #ccc; }
+.user-login-center input {
+  background-color: white;
+  color: black;
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
 
 /* 管理者ログイン右上 */
-.admin-login-topright { position:absolute; top:20px; right:20px; display:flex; flex-direction:row; align-items:center; gap:4px; font-size:12px; z-index:2; }
-.admin-login-topright input { padding:4px 6px; font-size:12px; border-radius:4px; border:1px solid #ccc; }
+.admin-login-topright {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  z-index: 2;
+}
+.admin-login-topright input {
+  padding: 4px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
 
 /* メニュー画面 */
-.menu-screen { display:flex; flex-direction:column; gap:15px; align-items:center; z-index:2; }
+.menu-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+  z-index:2;
+}
 
-.battle-screen { display:flex; flex-direction:column; gap:15px; align-items:center; justify-content:flex-start; padding-top:80px; color:white; z-index:2; }
+/* 対戦画面 */
+.battle-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 80px;
+  color: white;
+  z-index: 2;
+}
 
-.match-disabled { color:red; font-weight:bold; margin:10px 0; z-index:2; }
+/* 対戦不可表示 */
+.match-disabled {
+  color: red;
+  font-weight: bold;
+  margin: 10px 0;
+  z-index:2;
+}
 
 /* 常時表示履歴 */
-.history-list { background-color: rgba(0,0,0,0.5); padding:10px 15px; border-radius:6px; color:white; max-width:360px; text-align:left; }
+.history-list {
+  background-color: rgba(0,0,0,0.5);
+  padding: 10px 15px;
+  border-radius: 6px;
+  color: white;
+  max-width: 360px;
+  text-align: left;
+}
 .history-list h4 { margin:0 0 8px 0; }
 
 /* 管理者画面 */
-.admin-screen { display:flex; flex-direction:column; align-items:center; gap:25px; margin-top:100px; z-index:2; color:white; }
-.admin-section { display:flex; flex-direction:column; align-items:center; gap:10px; z-index:2; }
-.admin-section input[type="number"] { padding:6px; width:80px; border-radius:5px; border:1px solid #ccc; text-align:center; }
-.admin-section label { margin:4px 0; }
+.admin-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 25px;
+  margin-top: 100px;
+  z-index:2;
+  color:white;
+}
+.admin-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index:2;
+}
+.admin-section input[type="number"] {
+  padding: 6px;
+  width: 80px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  text-align: center;
+}
+.admin-section label { margin: 4px 0; }
