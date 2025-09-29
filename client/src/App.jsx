@@ -250,26 +250,32 @@ function App() {
         {!matchEnabled && <div className="match-disabled">マッチング受付時間外です</div>}
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
-        {/* 常時表示の対戦履歴 */}
-        {history.length > 0 && (
-          <div className="history-list">
-            <h4>対戦履歴</h4>
-            <ul>
-              {history.map((h,i) => <li key={i}>相手: {h.opponent} | 結果: {h.result}</li>)}
-            </ul>
-          </div>
-        )}
-
-        {lotteryList.length>0 && (
-          <div style={{marginTop:"15px", color:"yellow"}}>
-            <h4>抽選当選者一覧</h4>
-            <ul>{lotteryList.map((u,i)=> <li key={i}>{u.name}</li>)}</ul>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+{/* 常時表示の対戦履歴（連番・相手・結果） */}
+{history.length > 0 && (
+  <div className="history-list">
+    <h4>対戦履歴</h4>
+    <table style={{ width: "100%", color: "white", borderCollapse: "collapse" }}>
+      <thead>
+        <tr>
+          <th style={{ textAlign: "left", paddingRight: "10px" }}>#</th>
+          <th style={{ textAlign: "left", paddingRight: "10px" }}>相手</th>
+          <th style={{ textAlign: "left" }}>結果</th>
+        </tr>
+      </thead>
+      <tbody>
+        {history.map((h, i) => (
+          <tr key={i}>
+            <td>{i + 1}</td>
+            <td>{h.opponent}</td>
+            <td style={{ color: h.result === "勝ち" ? "red" : h.result === "負け" ? "blue" : "white" }}>
+              {h.result}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)}
 
 export default App;
 export { socket };
