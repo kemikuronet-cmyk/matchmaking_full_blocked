@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
+import backgroundImage from "./images/background.jpg";
 
 const socket = io(
   process.env.NODE_ENV === "production"
@@ -18,8 +19,6 @@ function App() {
   const [deskNum, setDeskNum] = useState(null);
 
   const [history, setHistory] = useState([]);
-  const [showHistory, setShowHistory] = useState(false);
-
   const [adminMode, setAdminMode] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [usersList, setUsersList] = useState([]);
@@ -30,10 +29,15 @@ function App() {
   const [lotteryWinner, setLotteryWinner] = useState(false);
   const [lotteryList, setLotteryList] = useState([]);
 
-  const [filterBattleCount, setFilterBattleCount] = useState(0);
-  const [filterLoginTime, setFilterLoginTime] = useState(0);
-
   const loginAttempted = useRef(false);
+
+  const commonStyle = {
+    backgroundImage: `url(${backgroundImage})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    minHeight: "100vh",
+  };
 
   useEffect(() => {
     if (!loginAttempted.current) {
@@ -51,7 +55,6 @@ function App() {
       setUser(u);
       setLoggedIn(true);
       localStorage.setItem("user", JSON.stringify(u));
-
       setSearching(u.status === "searching");
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
@@ -60,7 +63,6 @@ function App() {
         setOpponent(null);
         setDeskNum(null);
       }
-
       if (u.lotteryWinner) setLotteryWinner(true);
     });
 
@@ -87,11 +89,7 @@ function App() {
       setLotteryWinner(false);
     });
 
-    socket.on("history", (hist) => {
-      setHistory(hist);
-      setShowHistory(true);
-    });
-
+    socket.on("history", (hist) => setHistory(hist));
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
     socket.on("admin_ok", () => setAdminMode(true));
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
@@ -103,6 +101,7 @@ function App() {
     return () => socket.off();
   }, []);
 
+  // --- ハンドラ ---
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
@@ -133,7 +132,6 @@ function App() {
     setSearching(false);
   };
 
-  const handleShowHistory = () => socket.emit("request_history");
   const handleLogout = () => {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
@@ -150,13 +148,13 @@ function App() {
       setShowUserList(true);
     }
   };
-  const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount, minBattles: filterBattleCount, minLoginHours: filterLoginTime });
+  const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount });
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
   // --- レンダリング ---
   if (!loggedIn && !adminMode) {
     return (
-      <div className="login-screen app-background">
+      <div className="login-screen" style={commonStyle}>
         <div className="admin-login-topright">
           <input
             type="password"
@@ -166,7 +164,7 @@ function App() {
           />
           <button className="admin-btn" onClick={handleAdminLogin}>管理者ログイン</button>
         </div>
-        <div className="user-login-center top-align">
+        <div className="user-login-center-top">
           <h2>ユーザーとしてログイン</h2>
           <input
             type="text"
@@ -182,7 +180,7 @@ function App() {
 
   if (adminMode) {
     return (
-      <div className="app app-background">
+      <div className="app" style={commonStyle}>
         <div className="header">管理者画面</div>
         <div className="admin-screen">
           <div className="admin-section">
@@ -218,11 +216,6 @@ function App() {
           </div>
           <div className="admin-section">
             <h3>抽選</h3>
-            <label>対戦数以上：</label>
-            <input type="number" min="0" value={filterBattleCount} onChange={(e) => setFilterBattleCount(Number(e.target.value))} />
-            <label>ログイン時間（時間以上）：</label>
-            <input type="number" min="0" value={filterLoginTime} onChange={(e) => setFilterLoginTime(Number(e.target.value))} />
-            <label>当選人数：</label>
             <input
               type="number"
               min="1"
@@ -241,7 +234,7 @@ function App() {
 
   if (opponent) {
     return (
-      <div className="battle-screen app-background">
+      <div className="battle-screen" style={commonStyle}>
         <h3 className="text-on-background">対戦相手: {opponent.name}</h3>
         <div className="text-on-background">卓番号: {deskNum}</div>
         <button className="main-btn" onClick={handleWinReport}>勝利報告</button>
@@ -250,7 +243,7 @@ function App() {
   }
 
   return (
-    <div className="app app-background">
+    <div className="app" style={commonStyle}>
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
         {lotteryWinner && <div style={{ color: "red", fontWeight: "bold", marginBottom: "10px" }}>当選しました！</div>}
@@ -259,8 +252,17 @@ function App() {
         )}
         {searching && <button className="main-btn" onClick={handleCancelSearch}>検索をキャンセル</button>}
         {!matchEnabled && <div className="match-disabled">マッチング受付時間外です</div>}
-        <button className="main-btn" onClick={handleShowHistory}>対戦履歴を確認する</button>
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
+
+        {/* 対戦履歴を常に表示 */}
+        {history.length > 0 && (
+          <div className="history-list">
+            <h4>対戦履歴</h4>
+            <ul>
+              {history.map((h, i) => <li key={i}>{h.opponent} | {h.result}</li>)}
+            </ul>
+          </div>
+        )}
 
         {lotteryList.length > 0 && (
           <div style={{ marginTop: "15px", color: "yellow" }}>
@@ -271,14 +273,6 @@ function App() {
           </div>
         )}
       </div>
-
-      {showHistory && (
-        <div className="history-modal">
-          <button className="main-btn" onClick={() => setShowHistory(false)}>閉じる</button>
-          <h3>対戦履歴</h3>
-          <ul>{history.map((h, i) => <li key={i}>相手: {h.opponent} | 結果: {h.result}</li>)}</ul>
-        </div>
-      )}
     </div>
   );
 }
