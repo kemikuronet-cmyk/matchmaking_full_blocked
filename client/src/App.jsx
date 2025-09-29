@@ -18,6 +18,7 @@ function App() {
   const [deskNum, setDeskNum] = useState(null);
 
   const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const [adminMode, setAdminMode] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
@@ -25,10 +26,9 @@ function App() {
   const [matchEnabled, setMatchEnabled] = useState(false);
   const [showUserList, setShowUserList] = useState(false);
   const [drawCount, setDrawCount] = useState(1);
-  const [drawResult, setDrawResult] = useState([]);
   const [drawMinBattles, setDrawMinBattles] = useState(0);
   const [drawMinLoginMinutes, setDrawMinLoginMinutes] = useState(0);
-
+  const [drawResult, setDrawResult] = useState([]);
   const [lotteryWinner, setLotteryWinner] = useState(false);
   const [lotteryList, setLotteryList] = useState([]);
 
@@ -50,6 +50,7 @@ function App() {
       setUser(u);
       setLoggedIn(true);
       localStorage.setItem("user", JSON.stringify(u));
+
       setSearching(u.status === "searching");
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
@@ -58,6 +59,7 @@ function App() {
         setOpponent(null);
         setDeskNum(null);
       }
+
       if (u.lotteryWinner) setLotteryWinner(true);
     });
 
@@ -85,7 +87,8 @@ function App() {
     });
 
     socket.on("history", (hist) => {
-      setHistory(hist || []);
+      setHistory(hist);
+      setShowHistory(true);
     });
 
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
@@ -220,39 +223,13 @@ function App() {
           </div>
           <div className="admin-section">
             <h3>抽選</h3>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-              <div>
-                <label>対戦数以上: </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={drawMinBattles}
-                  onChange={(e) => setDrawMinBattles(Number(e.target.value))}
-                />
-              </div>
-              <div>
-                <label>ログイン時間以上（分）: </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={drawMinLoginMinutes}
-                  onChange={(e) => setDrawMinLoginMinutes(Number(e.target.value))}
-                />
-              </div>
-              <div>
-                <label>抽選人数: </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={drawCount}
-                  onChange={(e) => setDrawCount(Number(e.target.value))}
-                />
-              </div>
+            <div className="draw-condition">
+              <label>対戦数以上: <input type="number" min="0" value={drawMinBattles} onChange={e => setDrawMinBattles(Number(e.target.value))} /></label>
+              <label>ログイン時間以上（分）: <input type="number" min="0" value={drawMinLoginMinutes} onChange={e => setDrawMinLoginMinutes(Number(e.target.value))} /></label>
+              <label>抽選人数: <input type="number" min="1" value={drawCount} onChange={e => setDrawCount(Number(e.target.value))} /></label>
             </div>
             <button className="main-btn" onClick={handleDrawLots}>抽選する</button>
-            <ul>
-              {drawResult.map((u, i) => <li key={i}>{u.name}</li>)}
-            </ul>
+            <ul>{drawResult.map((u,i)=> <li key={i}>{u.name}</li>)}</ul>
           </div>
         </div>
       </div>
@@ -274,29 +251,23 @@ function App() {
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
         {lotteryWinner && <div style={{ color: "red", fontWeight: "bold", marginBottom: "10px" }}>当選しました！</div>}
-        {!searching && matchEnabled && (
-          <button className="main-btn" onClick={handleFindOpponent}>対戦相手を探す</button>
-        )}
+        {!searching && matchEnabled && <button className="main-btn" onClick={handleFindOpponent}>対戦相手を探す</button>}
         {searching && <button className="main-btn" onClick={handleCancelSearch}>検索をキャンセル</button>}
         {!matchEnabled && <div className="match-disabled">マッチング受付時間外です</div>}
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
-        {/* 常に表示される対戦履歴 */}
-        <div className="history-list">
-          <h4>対戦履歴</h4>
+        {/* 対戦履歴常時表示 */}
+        <div className="history-section">
+          <h3>対戦履歴</h3>
           <ul>
-            {history.map((h, i) => (
-              <li key={i}>相手: {h.opponent} | 結果: {h.result}</li>
-            ))}
+            {history.map((h,i)=> <li key={i}>{h.opponent} | {h.result}</li>)}
           </ul>
         </div>
 
         {lotteryList.length > 0 && (
           <div style={{ marginTop: "15px", color: "yellow" }}>
             <h4>抽選当選者一覧</h4>
-            <ul>
-              {lotteryList.map((u, i) => <li key={i}>{u.name}</li>)}
-            </ul>
+            <ul>{lotteryList.map((u,i)=> <li key={i}>{u.name}</li>)}</ul>
           </div>
         )}
       </div>
