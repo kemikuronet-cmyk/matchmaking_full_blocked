@@ -1,287 +1,266 @@
-import React, { useState, useEffect, useRef } from "react";
-import { io } from "socket.io-client";
-import "./App.css";
-
-const socket = io(
-  process.env.NODE_ENV === "production"
-    ? window.location.origin
-    : "http://localhost:4000"
-);
-
-function App() {
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [name, setName] = useState("");
-  const [user, setUser] = useState(null);
-
-  const [searching, setSearching] = useState(false);
-  const [opponent, setOpponent] = useState(null);
-  const [deskNum, setDeskNum] = useState(null);
-
-  const [history, setHistory] = useState([]);
-  const [showHistory, setShowHistory] = useState(false);
-
-  const [adminMode, setAdminMode] = useState(false);
-  const [adminPassword, setAdminPassword] = useState("");
-  const [usersList, setUsersList] = useState([]);
-  const [matchEnabled, setMatchEnabled] = useState(false);
-  const [showUserList, setShowUserList] = useState(false);
-  const [drawCount, setDrawCount] = useState(1);
-  const [drawResult, setDrawResult] = useState([]);
-  const [lotteryWinner, setLotteryWinner] = useState(false);
-  const [lotteryList, setLotteryList] = useState([]);
-
-  const [filterBattleCount, setFilterBattleCount] = useState(0);
-  const [filterLoginTime, setFilterLoginTime] = useState(0);
-
-  const loginAttempted = useRef(false);
-
-  useEffect(() => {
-    if (!loginAttempted.current) {
-      const savedUser = localStorage.getItem("user");
-      if (savedUser) {
-        const u = JSON.parse(savedUser);
-        setUser(u);
-        setLoggedIn(true);
-        socket.emit("login", { name: u.name, sessionId: u.sessionId });
-      }
-      loginAttempted.current = true;
-    }
-
-    socket.on("login_ok", (u) => {
-      setUser(u);
-      setLoggedIn(true);
-      localStorage.setItem("user", JSON.stringify(u));
-
-      setSearching(u.status === "searching");
-      if (u.currentOpponent) {
-        setOpponent(u.currentOpponent);
-        setDeskNum(u.deskNum);
-      } else {
-        setOpponent(null);
-        setDeskNum(null);
-      }
-
-      if (u.lotteryWinner) setLotteryWinner(true);
-    });
-
-    socket.on("matched", ({ opponent, deskNum }) => {
-      setOpponent(opponent);
-      setDeskNum(deskNum);
-      setSearching(false);
-    });
-
-    socket.on("return_to_menu_battle", () => {
-      setOpponent(null);
-      setDeskNum(null);
-      setSearching(false);
-    });
-
-    socket.on("force_logout", () => {
-      localStorage.removeItem("user");
-      setLoggedIn(false);
-      setAdminMode(false);
-      setUser(null);
-      setSearching(false);
-      setOpponent(null);
-      setDeskNum(null);
-      setLotteryWinner(false);
-    });
-
-    socket.on("history", (hist) => {
-      setHistory(hist);
-      setShowHistory(true);
-    });
-
-    socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
-    socket.on("admin_ok", () => setAdminMode(true));
-    socket.on("admin_fail", () => alert("パスワードが間違っています"));
-    socket.on("admin_user_list", (list) => setUsersList(list));
-    socket.on("admin_draw_result", (res) => setDrawResult(res));
-    socket.on("lottery_winner", () => setLotteryWinner(true));
-    socket.on("update_lottery_list", (list) => setLotteryList(list));
-
-    return () => socket.off();
-  }, []);
-
-  const handleLogin = () => {
-    const trimmedName = name.trim();
-    if (!trimmedName) return alert("ユーザー名を入力してください");
-    socket.emit("login", { name: trimmedName });
-  };
-
-  const handleAdminLogin = () => {
-    if (!adminPassword) return;
-    socket.emit("admin_login", { password: adminPassword });
-  };
-
-  const handleFindOpponent = () => {
-    if (!matchEnabled) return;
-    setSearching(true);
-    socket.emit("find_opponent");
-  };
-
-  const handleCancelSearch = () => {
-    setSearching(false);
-    socket.emit("cancel_find");
-  };
-
-  const handleWinReport = () => {
-    if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
-    socket.emit("report_win");
-    setOpponent(null);
-    setDeskNum(null);
-    setSearching(false);
-  };
-
-  const handleShowHistory = () => socket.emit("request_history");
-  const handleLogout = () => {
-    if (!window.confirm("ログアウトしますか？")) return;
-    socket.emit("logout");
-    localStorage.removeItem("user");
-    setLotteryWinner(false);
-    window.location.reload();
-  };
-
-  const handleToggleMatch = () => socket.emit("admin_toggle_match", { enable: !matchEnabled });
-  const handleViewUsers = () => {
-    if (showUserList) setShowUserList(false);
-    else {
-      socket.emit("admin_view_users");
-      setShowUserList(true);
-    }
-  };
-  const handleDrawLots = () => socket.emit("admin_draw_lots", { count: drawCount, minBattles: filterBattleCount, minLoginHours: filterLoginTime });
-  const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
-
-  // --- レンダリング ---
-  if (!loggedIn && !adminMode) {
-    return (
-      <div className="login-screen app-background">
-        <div className="admin-login-topright">
-          <input
-            type="password"
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-            placeholder="管理者パスワード"
-          />
-          <button className="admin-btn" onClick={handleAdminLogin}>管理者ログイン</button>
-        </div>
-        <div className="user-login-center top-align">
-          <h2>ユーザーとしてログイン</h2>
-          <input
-            type="text"
-            placeholder="ユーザー名"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button className="main-btn" onClick={handleLogin}>ログイン</button>
-        </div>
-      </div>
-    );
-  }
-
-  if (adminMode) {
-    return (
-      <div className="app app-background">
-        <div className="header">管理者画面</div>
-        <div className="admin-screen">
-          <div className="admin-section">
-            <button className="main-btn" onClick={handleToggleMatch}>
-              {matchEnabled ? "マッチング状態" : "マッチング開始"}
-            </button>
-          </div>
-          <div className="admin-section">
-            <button className="main-btn" onClick={handleViewUsers}>ユーザー一覧表示</button>
-            {showUserList && (
-              <table style={{ color: "white", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th>ID</th><th>名前</th><th>対戦数</th><th>勝</th><th>敗</th><th>ログイン時間</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usersList.map(u => {
-                    const win = u.history ? u.history.filter(h => h.result === "win").length : 0;
-                    const lose = u.history ? u.history.filter(h => h.result === "lose").length : 0;
-                    const loginTime = u.loginTime ? new Date(u.loginTime).toLocaleString() : "未ログイン";
-                    return (
-                      <tr key={u.id}>
-                        <td>{u.id}</td><td>{u.name}</td><td>{u.history?.length || 0}</td>
-                        <td>{win}</td><td>{lose}</td><td>{loginTime}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-            <button className="main-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
-          </div>
-          <div className="admin-section">
-            <h3>抽選</h3>
-            <label>対戦数以上：</label>
-            <input type="number" min="0" value={filterBattleCount} onChange={(e) => setFilterBattleCount(Number(e.target.value))} />
-            <label>ログイン時間（時間以上）：</label>
-            <input type="number" min="0" value={filterLoginTime} onChange={(e) => setFilterLoginTime(Number(e.target.value))} />
-            <label>当選人数：</label>
-            <input
-              type="number"
-              min="1"
-              value={drawCount}
-              onChange={(e) => setDrawCount(Number(e.target.value))}
-            />
-            <button className="main-btn" onClick={handleDrawLots}>抽選する</button>
-            <ul>
-              {drawResult.map((u, i) => <li key={i}>{u.name}</li>)}
-            </ul>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (opponent) {
-    return (
-      <div className="battle-screen app-background">
-        <h3 className="text-on-background">対戦相手: {opponent.name}</h3>
-        <div className="text-on-background">卓番号: {deskNum}</div>
-        <button className="main-btn" onClick={handleWinReport}>勝利報告</button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="app app-background">
-      <div className="header">{user?.name}</div>
-      <div className="menu-screen">
-        {lotteryWinner && <div style={{ color: "red", fontWeight: "bold", marginBottom: "10px" }}>当選しました！</div>}
-        {!searching && matchEnabled && (
-          <button className="main-btn" onClick={handleFindOpponent}>対戦相手を探す</button>
-        )}
-        {searching && <button className="main-btn" onClick={handleCancelSearch}>検索をキャンセル</button>}
-        {!matchEnabled && <div className="match-disabled">マッチング受付時間外です</div>}
-        <button className="main-btn" onClick={handleShowHistory}>対戦履歴を確認する</button>
-        <button className="main-btn" onClick={handleLogout}>ログアウト</button>
-
-        {lotteryList.length > 0 && (
-          <div style={{ marginTop: "15px", color: "yellow" }}>
-            <h4>抽選当選者一覧</h4>
-            <ul>
-              {lotteryList.map((u, i) => <li key={i}>{u.name}</li>)}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {showHistory && (
-        <div className="history-modal">
-          <button className="main-btn" onClick={() => setShowHistory(false)}>閉じる</button>
-          <h3>対戦履歴</h3>
-          <ul>{history.map((h, i) => <li key={i}>相手: {h.opponent} | 結果: {h.result}</li>)}</ul>
-        </div>
-      )}
-    </div>
-  );
+/* 全体設定 */
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: Arial, sans-serif;
+  background-color: #000; /* 背景がグレーにならないように黒に */
+  overflow-x: hidden;
 }
 
-export default App;
-export { socket };
+/* 背景画像 */
+.app-background {
+  background-image: url('/images/background.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+}
+
+/* オーバーレイ（文字やボタンを見やすくする） */
+.app-background::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.3); /* 半透明黒で文字見やすく */
+  z-index: 0;
+}
+
+/* App コンテナ */
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+/* ヘッダー */
+.header {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(255,255,255,0.9);
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  z-index: 100;
+}
+
+/* 共通ボタン */
+.main-btn {
+  background-color: #4CAF50;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 16px;
+  cursor: pointer;
+  margin: 8px 0;
+  transition: opacity 0.2s;
+  z-index: 2;
+  position: relative;
+}
+
+.main-btn:hover {
+  opacity: 0.9;
+}
+
+/* 管理者ボタン */
+.admin-btn {
+  background-color: #f44336;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.admin-btn:hover {
+  opacity: 0.9;
+}
+
+/* ログイン画面 */
+.login-screen {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start; /* 上寄せ */
+  padding-top: 120px; /* 上から余白 */
+  gap: 30px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ユーザーログインセクション中央上寄せ */
+.user-login-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 2;
+}
+
+/* 管理者ログイン右上 */
+.admin-login-topright {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  z-index: 2;
+}
+
+.admin-login-topright input {
+  padding: 4px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+/* メニュー画面 */
+.menu-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+  z-index: 2;
+  padding-top: 80px;
+  color: white;
+}
+
+/* 対戦画面 */
+.battle-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 80px;
+  z-index: 2;
+  color: white;
+}
+
+/* 履歴モーダル */
+.history-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #222;
+  border-radius: 10px;
+  padding: 20px;
+  width: 360px;
+  max-height: 400px;
+  overflow-y: auto;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  z-index: 200;
+  color: white;
+}
+
+.history-modal h3 {
+  margin-bottom: 12px;
+}
+
+.history-modal ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px 0;
+}
+
+.history-modal li {
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.history-modal .main-btn {
+  padding: 8px 20px;
+  border-radius: 6px;
+  border: none;
+  background-color: #f44336;
+  color: #fff;
+}
+
+.history-modal .main-btn:hover {
+  background-color: #d32f2f;
+}
+
+/* 管理者画面 */
+.admin-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 25px;
+  margin-top: 100px;
+  z-index: 2;
+  color: white;
+}
+
+/* 管理者セクション */
+.admin-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 2;
+  width: 90%;
+  max-width: 500px;
+}
+
+.admin-section table {
+  width: 100%;
+  border-collapse: collapse;
+  color: white;
+  margin-top: 10px;
+}
+
+.admin-section th, .admin-section td {
+  border: 1px solid #ccc;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+/* 管理者抽選 */
+.admin-section input[type="number"] {
+  padding: 6px;
+  width: 80px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  margin: 4px;
+  text-align: center;
+}
+
+/* 対戦不可状態 */
+.match-disabled {
+  color: red;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+/* ログイン画面の文字色 */
+.login-screen h2 {
+  color: white;
+  z-index: 2;
+}
+
+.login-screen input {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
