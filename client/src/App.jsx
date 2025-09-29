@@ -181,7 +181,7 @@ function App() {
 
   if (adminMode) {
     return (
-      <div className="app app-background">
+      <div className="app">
         <div className="header">管理者画面</div>
         <div className="admin-screen">
           <div className="admin-section">
@@ -232,7 +232,7 @@ function App() {
 
   if (opponent) {
     return (
-      <div className="battle-screen app-background">
+      <div className="battle-screen">
         <h3>対戦相手: {opponent.name}</h3>
         <div>卓番号: {deskNum}</div>
         <button className="main-btn" onClick={handleWinReport}>勝利報告</button>
@@ -241,7 +241,7 @@ function App() {
   }
 
   return (
-    <div className="app app-background">
+    <div className="app">
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
         {lotteryWinner && <div style={{color:"red", fontWeight:"bold", marginBottom:"10px"}}>当選しました！</div>}
