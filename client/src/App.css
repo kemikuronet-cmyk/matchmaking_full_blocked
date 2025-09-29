@@ -1,26 +1,33 @@
-/* 全体設定 */
-body, html {
+/* ========================
+   全体設定
+======================== */
+html, body, #root {
   margin: 0;
   padding: 0;
   height: 100%;
-  font-family: Arial, sans-serif;
   background-color: #000; /* 黒背景 */
-  position: relative;
-  color: white; /* 全体の文字色を白に */
+  color: white;            /* 全体文字白 */
+  font-family: Arial, sans-serif;
 }
 
-/* Appコンテナ */
+.app-background {
+  background: none;       /* 黒背景を透過 */
+}
+
 .app {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   padding-top: 80px;
+  min-height: 100vh;       /* 画面全体 */
   position: relative;
   z-index: 1;
 }
 
-/* ヘッダー */
+/* ========================
+   ヘッダー
+======================== */
 .header {
   position: fixed;
   top: 20px;
@@ -32,11 +39,13 @@ body, html {
   border-radius: 8px;
   font-weight: bold;
   font-size: 20px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
   z-index: 100;
 }
 
-/* 共通ボタン */
+/* ========================
+   ボタン
+======================== */
 .main-btn {
   background-color: #4CAF50;
   color: #fff;
@@ -64,12 +73,14 @@ body, html {
 }
 .admin-btn:hover { opacity: 0.9; }
 
-/* ログイン画面 */
+/* ========================
+   ログイン画面
+======================== */
 .login-screen {
   height: 100vh;
   display: flex;
-  justify-content: flex-start;
-  align-items: flex-start;
+  justify-content: flex-start; /* 上寄せ */
+  align-items: flex-start;     /* 上寄せ */
   flex-direction: column;
   position: relative;
   gap: 40px;
@@ -82,12 +93,12 @@ body, html {
   align-items: center;
   gap: 12px;
   margin: 0 auto;
-  margin-top: 80px; /* 上寄せ */
+  margin-top: 60px;      /* 上部寄せ */
   text-align: center;
 }
 
 .user-login-center h2 {
-  color: white; /* 文字白 */
+  color: white;
 }
 
 .user-login-center input {
@@ -117,7 +128,9 @@ body, html {
   border: 1px solid #ccc;
 }
 
-/* メニュー画面 */
+/* ========================
+   メニュー画面
+======================== */
 .menu-screen {
   display: flex;
   flex-direction: column;
@@ -143,7 +156,9 @@ body, html {
   z-index: 2;
 }
 
-/* 常時表示履歴 */
+/* ========================
+   常時表示履歴
+======================== */
 .history-list {
   background-color: rgba(0,0,0,0.5);
   padding: 10px 15px;
@@ -154,7 +169,9 @@ body, html {
 }
 .history-list h4 { margin: 0 0 8px 0; }
 
-/* 管理者画面 */
+/* ========================
+   管理者画面
+======================== */
 .admin-screen {
   display: flex;
   flex-direction: column;
