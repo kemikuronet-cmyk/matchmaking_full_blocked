@@ -1,15 +1,10 @@
 /* 全体設定 */
 body, html {
-  margin: 0; padding: 0;
+  margin: 0;
+  padding: 0;
   height: 100%;
   font-family: Arial, sans-serif;
   position: relative;
-  /* 背景画像は React 側で設定する場合は不要
-     ここでは全画面固定表示 */
-  background-image: url("/images/background.jpg");
-  background-size: cover;       /* 画面全体に1枚表示 */
-  background-position: center;
-  background-repeat: no-repeat;
 }
 
 /* オーバーレイ */
@@ -88,6 +83,10 @@ body::before {
   gap: 40px;
   padding-top: 60px;             /* 上余白 */
   z-index: 1;
+  background-image: url("/images/background.jpg");
+  background-size: cover;       /* 画面全体に1枚表示 */
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .user-login-center {
