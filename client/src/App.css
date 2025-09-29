@@ -1,33 +1,25 @@
-/* ========================
-   全体設定
-======================== */
-html, body, #root {
+/* 全体設定 */
+body, html {
   margin: 0;
   padding: 0;
   height: 100%;
-  background-color: #000; /* 黒背景 */
-  color: white;            /* 全体文字白 */
   font-family: Arial, sans-serif;
+  background-color: #000; /* 黒背景 */
+  color: white; /* 文字白 */
 }
 
-.app-background {
-  background: none;       /* 黒背景を透過 */
-}
-
+/* Appコンテナ */
 .app {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   padding-top: 80px;
-  min-height: 100vh;       /* 画面全体 */
   position: relative;
   z-index: 1;
 }
 
-/* ========================
-   ヘッダー
-======================== */
+/* ヘッダー */
 .header {
   position: fixed;
   top: 20px;
@@ -43,9 +35,7 @@ html, body, #root {
   z-index: 100;
 }
 
-/* ========================
-   ボタン
-======================== */
+/* 共通ボタン */
 .main-btn {
   background-color: #4CAF50;
   color: #fff;
@@ -73,18 +63,15 @@ html, body, #root {
 }
 .admin-btn:hover { opacity: 0.9; }
 
-/* ========================
-   ログイン画面
-======================== */
+/* ログイン画面 */
 .login-screen {
   height: 100vh;
   display: flex;
-  justify-content: flex-start; /* 上寄せ */
-  align-items: flex-start;     /* 上寄せ */
   flex-direction: column;
-  position: relative;
-  gap: 40px;
-  padding-top: 60px;
+  align-items: center;
+  justify-content: flex-start; /* 上寄せ */
+  padding-top: 100px; /* 上からの余白 */
+  gap: 20px;
 }
 
 .user-login-center {
@@ -92,9 +79,6 @@ html, body, #root {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  margin: 0 auto;
-  margin-top: 60px;      /* 上部寄せ */
-  text-align: center;
 }
 
 .user-login-center h2 {
@@ -128,9 +112,7 @@ html, body, #root {
   border: 1px solid #ccc;
 }
 
-/* ========================
-   メニュー画面
-======================== */
+/* メニュー画面 */
 .menu-screen {
   display: flex;
   flex-direction: column;
@@ -139,6 +121,36 @@ html, body, #root {
   z-index: 2;
 }
 
+/* 対戦履歴 */
+.history-list {
+  background-color: rgba(0,0,0,0.6);
+  padding: 10px 15px;
+  border-radius: 6px;
+  color: white;
+  max-width: 400px;
+  width: 90%;
+  text-align: left;
+}
+.history-list h4 {
+  margin: 0 0 8px 0;
+}
+.history-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.history-list th, .history-list td {
+  padding: 4px 8px;
+  text-align: left;
+}
+.history-list td:nth-child(3) { /* 結果列 */
+  font-weight: bold;
+}
+
+/* 勝敗色 */
+.history-list td.win { color: red; }
+.history-list td.lose { color: blue; }
+
+/* バトル画面 */
 .battle-screen {
   display: flex;
   flex-direction: column;
@@ -156,22 +168,7 @@ html, body, #root {
   z-index: 2;
 }
 
-/* ========================
-   常時表示履歴
-======================== */
-.history-list {
-  background-color: rgba(0,0,0,0.5);
-  padding: 10px 15px;
-  border-radius: 6px;
-  color: white;
-  max-width: 360px;
-  text-align: left;
-}
-.history-list h4 { margin: 0 0 8px 0; }
-
-/* ========================
-   管理者画面
-======================== */
+/* 管理者画面 */
 .admin-screen {
   display: flex;
   flex-direction: column;
