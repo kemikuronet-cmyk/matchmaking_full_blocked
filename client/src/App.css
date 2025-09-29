@@ -4,6 +4,12 @@ body, html {
   height: 100%;
   font-family: Arial, sans-serif;
   position: relative;
+  /* 背景画像は React 側で設定する場合は不要
+     ここでは全画面固定表示 */
+  background-image: url("/images/background.jpg");
+  background-size: cover;       /* 画面全体に1枚表示 */
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 /* オーバーレイ */
@@ -75,12 +81,12 @@ body::before {
 .login-screen {
   height: 100vh;
   display: flex;
-  justify-content: center;  /* 中央横寄せ */
-  align-items: flex-start;  /* 上寄せ */
+  justify-content: center;       /* 横中央 */
+  align-items: flex-start;       /* 上寄せ */
   flex-direction: column;
   position: relative;
   gap: 40px;
-  padding-top: 80px;       /* 上余白を確保 */
+  padding-top: 60px;             /* 上余白 */
   z-index: 1;
 }
 
@@ -91,6 +97,10 @@ body::before {
   gap: 12px;
   z-index: 2;
   margin: 0 auto;
+}
+
+.user-login-center h2 {
+  color: white; /* 文字色を白に */
 }
 
 .user-login-center input {
