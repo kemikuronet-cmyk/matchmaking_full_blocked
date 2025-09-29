@@ -51,7 +51,6 @@ function App() {
       setUser(u);
       setLoggedIn(true);
       localStorage.setItem("user", JSON.stringify(u));
-
       setSearching(u.status === "searching");
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
@@ -60,8 +59,6 @@ function App() {
         setOpponent(null);
         setDeskNum(null);
       }
-
-      if (u.lotteryWinner) setLotteryWinner(true);
     });
 
     socket.on("matched", ({ opponent, deskNum }) => {
@@ -88,7 +85,6 @@ function App() {
     });
 
     socket.on("history", (hist) => setHistory(hist));
-
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
     socket.on("admin_ok", () => setAdminMode(true));
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
@@ -100,7 +96,6 @@ function App() {
     return () => socket.off();
   }, []);
 
-  // --- ハンドラ ---
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
@@ -148,10 +143,10 @@ function App() {
     }
   };
   const handleDrawLots = () => {
-    socket.emit("admin_draw_lots", {
+    socket.emit("admin_draw_lots", { 
       count: drawCount,
-      minMatches,
-      minLoginHours
+      minMatches: minMatches,
+      minLoginHours: minLoginHours
     });
   };
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
@@ -170,6 +165,7 @@ function App() {
           />
           <button className="main-btn" onClick={handleLogin}>ログイン</button>
         </div>
+
         <div className="admin-login-topright">
           <input
             type="password"
@@ -185,7 +181,7 @@ function App() {
 
   if (adminMode) {
     return (
-      <div className="app">
+      <div className="app app-background">
         <div className="header">管理者画面</div>
         <div className="admin-screen">
           <div className="admin-section">
@@ -221,11 +217,13 @@ function App() {
           </div>
           <div className="admin-section">
             <h3>抽選</h3>
-            <label>抽選人数: <input type="number" min="1" value={drawCount} onChange={e => setDrawCount(Number(e.target.value))} /></label>
-            <label>対戦数以上: <input type="number" min="0" value={minMatches} onChange={e => setMinMatches(Number(e.target.value))} /></label>
-            <label>ログイン時間以上(時間): <input type="number" min="0" value={minLoginHours} onChange={e => setMinLoginHours(Number(e.target.value))} /></label>
+            <label>抽選人数: <input type="number" min="1" value={drawCount} onChange={e => setDrawCount(Number(e.target.value))}/></label>
+            <label>対戦数以上: <input type="number" min="0" value={minMatches} onChange={e => setMinMatches(Number(e.target.value))}/></label>
+            <label>ログイン時間以上(時間): <input type="number" min="0" value={minLoginHours} onChange={e => setMinLoginHours(Number(e.target.value))}/></label>
             <button className="main-btn" onClick={handleDrawLots}>抽選する</button>
-            <ul>{drawResult.map((u,i) => <li key={i}>{u.name}</li>)}</ul>
+            <ul>
+              {drawResult.map((u,i) => <li key={i}>{u.name}</li>)}
+            </ul>
           </div>
         </div>
       </div>
@@ -234,7 +232,7 @@ function App() {
 
   if (opponent) {
     return (
-      <div className="battle-screen">
+      <div className="battle-screen app-background">
         <h3>対戦相手: {opponent.name}</h3>
         <div>卓番号: {deskNum}</div>
         <button className="main-btn" onClick={handleWinReport}>勝利報告</button>
@@ -243,7 +241,7 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app app-background">
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
         {lotteryWinner && <div style={{color:"red", fontWeight:"bold", marginBottom:"10px"}}>当選しました！</div>}
@@ -256,7 +254,9 @@ function App() {
         {history.length > 0 && (
           <div className="history-list">
             <h4>対戦履歴</h4>
-            <ul>{history.map((h,i) => <li key={i}>相手: {h.opponent} | 結果: {h.result}</li>)}</ul>
+            <ul>
+              {history.map((h,i) => <li key={i}>相手: {h.opponent} | 結果: {h.result}</li>)}
+            </ul>
           </div>
         )}
 
