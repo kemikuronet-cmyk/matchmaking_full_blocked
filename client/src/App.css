@@ -270,3 +270,65 @@ body::before {
   background-repeat: no-repeat;
   min-height: 100vh;
 }
+
+/* --- 上書き用 CSS --- */
+
+/* 背景画像 */
+.app, .login-screen {
+  background-image: url('/images/background.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* ログイン画面中央寄せ */
+.login-screen {
+  justify-content: center;
+  padding-top: 0;
+  gap: 40px;
+}
+
+/* 管理者ログイン右上固定 */
+.admin-login-topright {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  z-index: 200;
+}
+
+/* ボタン色・文字色 */
+.main-btn {
+  background-color: #007bff; /* 青ボタン */
+  color: #fff;               /* 白文字 */
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 16px;
+  cursor: pointer;
+  margin: 8px 0;
+  transition: opacity 0.2s;
+}
+
+.main-btn:hover {
+  opacity: 0.9;
+}
+
+.admin-btn {
+  background-color: #f44336; /* 赤ボタン */
+  color: #fff;               /* 白文字 */
+  border: none;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.admin-btn:hover {
+  opacity: 0.9;
+}
+
