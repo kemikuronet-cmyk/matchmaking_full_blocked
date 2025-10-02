@@ -246,7 +246,6 @@ function App() {
     <div className="app">
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
-        {lotteryWinner && <div style={{color:"red", fontWeight:"bold", marginBottom:"10px"}}>当選しました！</div>}
         {!searching && matchEnabled && <button className="main-btn" onClick={handleFindOpponent}>対戦相手を探す</button>}
         {searching && <button className="main-btn" onClick={handleCancelSearch}>検索をキャンセル</button>}
         {!matchEnabled && <div className="match-disabled">マッチング受付時間外です</div>}
