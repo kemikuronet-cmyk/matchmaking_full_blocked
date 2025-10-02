@@ -32,6 +32,7 @@ function App() {
 
   const [lotteryWinner, setLotteryWinner] = useState(false);
   const [lotteryList, setLotteryList] = useState([]);
+  const [showLottery, setShowLottery] = useState(false); // ★追加：抽選結果表示切替
 
   const loginAttempted = useRef(false);
 
@@ -240,7 +241,7 @@ function App() {
     );
   }
 
-  // ユーザーメニュー + 常時表示の対戦履歴
+  // ユーザーメニュー
   return (
     <div className="app">
       <div className="header">{user?.name}</div>
@@ -278,11 +279,18 @@ function App() {
           </div>
         )}
 
-        {/* 抽選当選者 */}
+        {/* 抽選当選者：ボタンで表示切替 */}
         {lotteryList.length > 0 && (
-          <div style={{marginTop:"15px", color:"yellow"}}>
-            <h4>抽選当選者一覧</h4>
-            <ul>{lotteryList.map((u,i) => <li key={i}>{u.name}</li>)}</ul>
+          <div style={{ marginTop:"15px" }}>
+            <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
+              {showLottery ? "抽選結果を隠す" : "抽選結果を表示"}
+            </button>
+            {showLottery && (
+              <div style={{ marginTop:"10px", color:"yellow" }}>
+                <h4>抽選当選者一覧</h4>
+                <ul>{lotteryList.map((u,i) => <li key={i}>{u.name}</li>)}</ul>
+              </div>
+            )}
           </div>
         )}
       </div>
