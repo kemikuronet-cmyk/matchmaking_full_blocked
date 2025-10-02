@@ -269,7 +269,7 @@ function App() {
           </div>
         )}
 
-        {/* 対戦履歴：抽選結果ボタンの下に表示 */}
+        {/* 対戦履歴：抽選結果ボタンの下に常に表示 */}
         {history.length > 0 && (
           <div className="history-list" style={{ marginTop:"15px" }}>
             <h4>対戦履歴</h4>
