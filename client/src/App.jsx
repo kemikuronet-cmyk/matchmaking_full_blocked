@@ -243,6 +243,7 @@ function App() {
 
   // --- ユーザーメニュー ---
   const isWinner = lotteryList.some(u => u.name === user?.name);
+  const displayHistory = history || [];
 
   return (
     <div className="app">
@@ -269,9 +270,9 @@ function App() {
           </div>
         )}
 
-        {/* 対戦履歴：抽選結果ボタンの下に常に表示 */}
-        {history.length > 0 && (
-          <div className="history-list" style={{ marginTop:"15px" }}>
+        {/* 対戦履歴：常に表示 */}
+        <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
+          <div className="history-list">
             <h4>対戦履歴</h4>
             <table>
               <thead>
@@ -282,7 +283,7 @@ function App() {
                 </tr>
               </thead>
               <tbody>
-                {history.map((h, i) => (
+                {displayHistory.map((h, i) => (
                   <tr key={i}>
                     <td>{i + 1}</td>
                     <td>{h.opponent}</td>
@@ -294,7 +295,7 @@ function App() {
               </tbody>
             </table>
           </div>
-        )}
+        </div>
 
       </div>
     </div>
