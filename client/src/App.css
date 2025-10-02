@@ -1,219 +1,137 @@
-/* ======================== */
-/* 全体設定 */
-/* ======================== */
-body, html {
+/* 全体背景 */
+body, html, #root {
   margin: 0;
   padding: 0;
   height: 100%;
+  background: url("./images/background.jpg") no-repeat center center fixed;
+  background-size: cover;
   font-family: Arial, sans-serif;
-  background-color: #000; /* 黒背景 */
-  color: white; /* 文字白 */
-}
-
-/* ======================== */
-/* Appコンテナ */
-/* ======================== */
-.app {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding-top: 80px;
-  position: relative;
-  z-index: 1;
-}
-
-/* ======================== */
-/* ヘッダー */
-/* ======================== */
-.header {
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #111; /* 黒寄りの背景 */
   color: white;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-weight: bold;
-  font-size: 20px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-  z-index: 100;
 }
 
-/* ======================== */
-/* 共通ボタン */
-/* ======================== */
-.main-btn {
-  background-color: #4CAF50;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 12px 24px;
-  font-size: 16px;
-  cursor: pointer;
-  margin: 8px 0;
-  transition: opacity 0.2s;
-  position: relative;
-  z-index: 2;
-}
-.main-btn:hover { opacity: 0.9; }
-
-.admin-btn {
-  background-color: #f44336;
-  color: #fff;
-  border: none;
-  border-radius: 5px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  z-index: 2;
-}
-.admin-btn:hover { opacity: 0.9; }
-
-/* ======================== */
-/* ログイン画面 */
-/* ======================== */
-.login-screen {
-  height: 100vh;
+/* 共通レイアウト */
+.app, .login-screen, .menu-screen, .admin-screen, .battle-screen {
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding-top: 100px;
-  gap: 20px;
-  background-color: #000; /* 黒背景 */
-  color: white; /* 文字白 */
+  padding: 20px;
 }
 
+/* ヘッダー */
+.header {
+  width: 100%;
+  padding: 15px;
+  background: rgba(0,0,0,0.7);
+  text-align: center;
+  font-size: 20px;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* ログイン画面 */
 .user-login-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
+  background: rgba(0,0,0,0.7);
+  padding: 20px;
+  border-radius: 10px;
+  margin-top: 80px;
+  text-align: center;
 }
 
-.user-login-center h2 {
-  color: white;
-}
-
-/* 入力フォーム黒背景＋文字白 */
-.user-login-center input,
-.admin-login-topright input {
-  background-color: #222; /* 黒に近いグレー */
-  color: white;
-  padding: 6px;
-  border-radius: 4px;
-  border: 1px solid #555;
-}
-
-/* 管理者ログイン右上 */
 .admin-login-topright {
   position: absolute;
   top: 20px;
   right: 20px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  z-index: 2;
+  background: rgba(0,0,0,0.7);
+  padding: 10px;
+  border-radius: 10px;
 }
 
-/* ======================== */
-/* メニュー画面 */
-/* ======================== */
-.menu-screen {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  align-items: center;
-  z-index: 2;
-}
-
-/* ======================== */
-/* 対戦履歴 */
-/* ======================== */
-.history-list {
-  background-color: rgba(0,0,0,0.6);
-  padding: 10px 15px;
-  border-radius: 6px;
+/* 入力欄 */
+input {
+  display: block;
+  margin: 10px auto;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #444;
+  background: rgba(0,0,0,0.6);
   color: white;
-  max-width: 400px;
-  width: 90%;
-  text-align: left;
+  width: 200px;
 }
-.history-list h4 {
-  margin: 0 0 8px 0;
+
+/* ボタン */
+button {
+  margin: 5px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
 }
+
+.main-btn {
+  background: #444;
+  color: white;
+}
+
+.main-btn:hover {
+  background: #666;
+}
+
+.admin-btn {
+  background: #b22222;
+  color: white;
+}
+
+.admin-btn:hover {
+  background: #d32f2f;
+}
+
+/* 対戦履歴 */
+.history-list {
+  margin-top: 20px;
+  width: 100%;
+  max-width: 500px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 10px;
+  padding: 10px;
+}
+
 .history-list table {
   width: 100%;
   border-collapse: collapse;
-}
-.history-list th, .history-list td {
-  padding: 4px 8px;
-  text-align: left;
-}
-.history-list td:nth-child(3) { /* 結果列 */
-  font-weight: bold;
-}
-
-/* 勝敗色 */
-.history-list td.win { color: red; }
-.history-list td.lose { color: blue; }
-
-/* ======================== */
-/* バトル画面 */
-/* ======================== */
-.battle-screen {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  align-items: center;
-  justify-content: flex-start;
-  padding-top: 80px;
-  z-index: 2;
-}
-
-.match-disabled {
-  color: red;
-  font-weight: bold;
-  margin: 10px 0;
-  z-index: 2;
-}
-
-/* ======================== */
-/* 管理者画面 */
-/* ======================== */
-.admin-screen {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 25px;
-  margin-top: 100px;
-  z-index: 2;
   color: white;
 }
-.admin-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  z-index: 2;
-}
-.admin-section input[type="number"] {
+
+.history-list th, .history-list td {
+  border-bottom: 1px solid #555;
   padding: 6px;
-  width: 80px;
-  border-radius: 5px;
-  border: 1px solid #555;
   text-align: center;
 }
-.admin-section label { margin: 4px 0; }
 
-/* ======================== */
-/* 抽選当選者表示 */
-/* ======================== */
+.win {
+  color: red;
+  font-weight: bold;
+}
+
+.lose {
+  color: #00aaff;
+  font-weight: bold;
+}
+
+/* 抽選当選者 */
 .lottery-list {
   margin-top: 15px;
   color: yellow;
+}
+
+/* 管理者画面 */
+.admin-section {
+  background: rgba(0,0,0,0.7);
+  margin: 15px 0;
+  padding: 15px;
+  border-radius: 10px;
 }
