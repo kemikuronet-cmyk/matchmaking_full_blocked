@@ -32,7 +32,7 @@ function App() {
 
   const [lotteryWinner, setLotteryWinner] = useState(false);
   const [lotteryList, setLotteryList] = useState([]);
-  const [showLottery, setShowLottery] = useState(false); // ★追加：抽選結果表示切替
+  const [showLottery, setShowLottery] = useState(false); // 抽選結果表示切替
 
   const loginAttempted = useRef(false);
 
@@ -241,7 +241,9 @@ function App() {
     );
   }
 
-  // ユーザーメニュー
+  // --- ユーザーメニュー ---
+  const isWinner = lotteryList.some(u => u.name === user?.name);
+
   return (
     <div className="app">
       <div className="header">{user?.name}</div>
@@ -286,6 +288,7 @@ function App() {
             </button>
             {showLottery && (
               <div style={{ marginTop:"10px", color:"yellow" }}>
+                {isWinner && <p style={{ color:"red", fontWeight:"bold" }}>当選しました！</p>}
                 <h4>抽選当選者一覧</h4>
                 <ul>{lotteryList.map((u,i) => <li key={i}>{u.name}</li>)}</ul>
               </div>
