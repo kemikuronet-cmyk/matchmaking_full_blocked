@@ -165,8 +165,9 @@ io.on("connection", (socket) => {
     if (!opponent) return;
 
     const now = new Date();
-    user.history.push({ opponent: opponent.name, result: "win", startTime: now, endTime: now });
-    opponent.history.push({ opponent: user.name, result: "lose", startTime: now, endTime: now });
+    // ★ 日本語で保存（管理画面と一致）
+    user.history.push({ opponent: opponent.name, result: "勝ち", startTime: now, endTime: now });
+    opponent.history.push({ opponent: user.name, result: "負け", startTime: now, endTime: now });
 
     const deskNum = user.deskNum;
 
