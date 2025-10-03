@@ -19,6 +19,7 @@ let users = [];
 let matches = {}; // deskNum -> [sessionId1, sessionId2]
 let matchEnabled = false;
 let lotteryWinners = []; // sessionId 配列
+let autoLogoutHours = 12; // 初期値: 12時間
 
 // --- 卓番号割り当て ---
 function assignDeskNum() {
@@ -26,6 +27,25 @@ function assignDeskNum() {
   while (matches[deskNum]) deskNum++;
   return deskNum;
 }
+
+// --- 自動ログアウトチェック ---
+setInterval(() => {
+  const now = new Date();
+  users.forEach((u, idx) => {
+    const loginTime = new Date(u.loginTime);
+    const hoursElapsed = (now - loginTime) / (1000 * 60 * 60);
+    if (hoursElapsed >= autoLogoutHours) {
+      io.to(u.id).emit("force_logout");
+      console.log(`自動ログアウト: ${u.name}`);
+    }
+  });
+  // ログアウト済みを削除
+  users = users.filter(u => {
+    const loginTime = new Date(u.loginTime);
+    const hoursElapsed = (now - loginTime) / (1000 * 60 * 60);
+    return hoursElapsed < autoLogoutHours;
+  });
+}, 60 * 1000); // 1分ごと
 
 // --- 接続 ---
 io.on("connection", (socket) => {
@@ -37,7 +57,9 @@ io.on("connection", (socket) => {
     if (!name || !name.trim()) return;
 
     let user = users.find(u => u.sessionId === sessionId);
-    if (user) user.id = socket.id;
+    if (user) {
+      user.id = socket.id;
+    }
 
     if (!user) {
       user = {
@@ -67,6 +89,19 @@ io.on("connection", (socket) => {
   socket.on("admin_login", ({ password }) => {
     if (password === "admin123") socket.emit("admin_ok");
     else socket.emit("admin_fail");
+  });
+
+  // --- 管理者：自動ログアウト設定 ---
+  socket.on("admin_set_auto_logout", ({ hours }) => {
+    if (typeof hours === "number" && hours > 0) {
+      autoLogoutHours = hours;
+      console.log(`自動ログアウト時間を変更: ${hours} 時間`);
+      socket.emit("admin_set_auto_logout_ok", { hours });
+    }
+  });
+
+  socket.on("admin_get_auto_logout", () => {
+    socket.emit("admin_current_auto_logout", { hours: autoLogoutHours });
   });
 
   // --- マッチング ---
