@@ -58,6 +58,12 @@ function App() {
       setSearching(u.status === "searching");
       setHistory(u.history || []);
       setLotteryList(u.lotteryList || []);
+
+      // --- lotteryList に要素がある場合、ボタン表示を維持する ---
+      if ((u.lotteryList || []).length > 0) {
+        setShowLottery(false);
+      }
+
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
         setDeskNum(u.deskNum);
@@ -313,7 +319,7 @@ function App() {
             {showLottery && (
               <div style={{ marginTop:"10px", color:"yellow" }}>
                 {isWinner && <p style={{ color:"red", fontWeight:"bold" }}>当選しました！</p>}
-                <h4>抽選当選者一覧</h4>
+                <h4>当選者一覧</h4>
                 <ul>{lotteryList.map((u,i) => <li key={i}>{u.name}</li>)}</ul>
               </div>
             )}
@@ -327,7 +333,7 @@ function App() {
             <table>
               <thead>
                 <tr>
-                  <th>#</th>
+                  <th>No.</th>
                   <th>相手</th>
                   <th>結果</th>
                 </tr>
