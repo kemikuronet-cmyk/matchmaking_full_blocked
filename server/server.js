@@ -140,6 +140,11 @@ io.on("connection", (socket) => {
     opponent.status = "idle"; opponent.opponentSessionId = null; opponent.deskNum = null;
     if (matches[deskNum]) delete matches[deskNum];
 
+    // 双方に履歴を送信
+    io.to(user.id).emit("history", user.history);
+    io.to(opponent.id).emit("history", opponent.history);
+
+    // メニューへ戻す
     socket.emit("return_to_menu_battle");
     io.to(opponent.id).emit("return_to_menu_battle");
   });
