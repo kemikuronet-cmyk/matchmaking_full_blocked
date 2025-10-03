@@ -314,7 +314,7 @@ function App() {
         {lotteryList && (
           <div style={{ marginTop:"15px" }}>
             <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
-              {showLottery ? "抽選結果を隠す" : "抽選結果を表示"}
+              {showLottery ? "抽選結果を閉じる" : "抽選結果"}
             </button>
             {showLottery && (
               <div style={{ marginTop:"10px", color:"yellow" }}>
