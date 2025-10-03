@@ -34,6 +34,9 @@ function App() {
   const [lotteryList, setLotteryList] = useState([]);
   const [showLottery, setShowLottery] = useState(false);
 
+  // --- 自動ログアウト時間 ---
+  const [autoLogoutHours, setAutoLogoutHours] = useState(12);
+
   const loginAttempted = useRef(false);
 
   useEffect(() => {
@@ -87,12 +90,24 @@ function App() {
 
     socket.on("history", (hist) => setHistory(hist));
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
-    socket.on("admin_ok", () => setAdminMode(true));
+    socket.on("admin_ok", () => {
+      setAdminMode(true);
+      socket.emit("admin_get_auto_logout"); // 管理者ログイン時に取得
+    });
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => setDrawResult(res));
     socket.on("lottery_winner", () => setLotteryWinner(true));
     socket.on("update_lottery_list", (list) => setLotteryList(list));
+
+    // --- 自動ログアウト時間をサーバーから取得 ---
+    socket.on("admin_current_auto_logout", ({ hours }) => {
+      setAutoLogoutHours(hours);
+    });
+    socket.on("admin_set_auto_logout_ok", ({ hours }) => {
+      setAutoLogoutHours(hours);
+      alert(`自動ログアウト時間を ${hours} 時間に設定しました`);
+    });
 
     return () => socket.off();
   }, []);
@@ -156,6 +171,14 @@ function App() {
   };
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
+  const handleUpdateAutoLogout = () => {
+    if (autoLogoutHours <= 0) {
+      alert("1時間以上を指定してください");
+      return;
+    }
+    socket.emit("admin_set_auto_logout", { hours: autoLogoutHours });
+  };
+
   // --- レンダリング ---
   if (!loggedIn && !adminMode) {
     return (
@@ -194,6 +217,24 @@ function App() {
               {matchEnabled ? "マッチング状態" : "マッチング開始"}
             </button>
           </div>
+
+          {/* 自動ログアウト設定 */}
+          <div className="admin-section">
+            <h3>自動ログアウト設定</h3>
+            <label>
+              ログインからの時間(時間):
+              <input
+                type="number"
+                min="1"
+                value={autoLogoutHours}
+                onChange={(e) => setAutoLogoutHours(Number(e.target.value))}
+              />
+            </label>
+            <button className="main-btn" onClick={handleUpdateAutoLogout}>
+              更新
+            </button>
+          </div>
+
           <div className="admin-section">
             <button className="main-btn" onClick={handleViewUsers}>ユーザー一覧表示</button>
             {showUserList && (
@@ -220,6 +261,7 @@ function App() {
             )}
             <button className="main-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
           </div>
+
           <div className="admin-section">
             <h3>抽選</h3>
             <label>抽選人数: <input type="number" min="1" value={drawCount} onChange={e => setDrawCount(Number(e.target.value))}/></label>
