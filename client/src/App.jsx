@@ -18,6 +18,7 @@ function App() {
   const [deskNum, setDeskNum] = useState(null);
 
   const [history, setHistory] = useState([]);
+  const [lotteryList, setLotteryList] = useState([]);
 
   const [adminMode, setAdminMode] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
@@ -31,7 +32,6 @@ function App() {
   const [drawResult, setDrawResult] = useState([]);
 
   const [lotteryWinner, setLotteryWinner] = useState(false);
-  const [lotteryList, setLotteryList] = useState([]);
   const [showLottery, setShowLottery] = useState(false);
 
   // --- 自動ログアウト時間 ---
@@ -56,6 +56,8 @@ function App() {
       setLoggedIn(true);
       localStorage.setItem("user", JSON.stringify(u));
       setSearching(u.status === "searching");
+      setHistory(u.history || []);
+      setLotteryList(u.lotteryList || []);
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
         setDeskNum(u.deskNum);
