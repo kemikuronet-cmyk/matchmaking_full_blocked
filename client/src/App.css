@@ -143,12 +143,12 @@ button {
 }
 
 .win {
-  color: red;
+  color: #00aaff;
   font-weight: bold;
 }
 
 .lose {
-  color: #00aaff;
+  color: red;
   font-weight: bold;
 }
 
