@@ -174,7 +174,7 @@ function App() {
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
 
   const handleUpdateAutoLogout = () => {
-    if (autoLogoutHours <= 0) {
+    if (autoLogoutHours <= 0.01) {
       alert("1時間以上を指定してください");
       return;
     }
