@@ -224,7 +224,7 @@ function App() {
         <div className="admin-screen">
           <div className="admin-section">
             <button className="main-btn" onClick={handleToggleMatch}>
-              {matchEnabled ? "マッチング状態" : "マッチング開始"}
+              {matchEnabled ? "マッチング中" : "マッチング開始"}
             </button>
           </div>
 
@@ -306,8 +306,8 @@ function App() {
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
         {!searching && matchEnabled && <button className="main-btn" onClick={handleFindOpponent}>対戦相手を探す</button>}
-        {searching && <button className="main-btn" onClick={handleCancelSearch}>検索をキャンセル</button>}
-        {!matchEnabled && <div className="match-disabled">マッチング受付時間外です</div>}
+        {searching && <button className="main-btn" onClick={handleCancelSearch}>キャンセル</button>}
+        {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
         {/* 抽選当選者：ボタンで表示切替 */}
@@ -343,7 +343,7 @@ function App() {
                   <tr key={i}>
                     <td>{i + 1}</td>
                     <td>{h.opponent}</td>
-                    <td className={h.result === "勝ち" ? "win" : h.result === "負け" ? "lose" : ""}>
+                    <td className={h.result === "WIN" ? "win" : h.result === "LOSE" ? "lose" : ""}>
                       {h.result}
                     </td>
                   </tr>
