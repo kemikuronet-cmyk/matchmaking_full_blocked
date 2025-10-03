@@ -77,7 +77,9 @@ function App() {
       setSearching(false);
     });
 
+    // --- 自動ログアウト処理 ---
     socket.on("force_logout", () => {
+      alert("一定時間が経過したため、自動ログアウトされました。");
       localStorage.removeItem("user");
       setLoggedIn(false);
       setAdminMode(false);
@@ -316,7 +318,7 @@ function App() {
           </div>
         )}
 
-        {/* 対戦履歴：常に表示 */}
+        {/* 対戦履歴 */}
         <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
           <div className="history-list">
             <h4>対戦履歴</h4>
