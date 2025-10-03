@@ -125,6 +125,10 @@ function App() {
     setOpponent(null);
     setDeskNum(null);
     setSearching(false);
+
+    // --- 勝利報告後に履歴とユーザーリストを再取得 ---
+    socket.emit("request_history");
+    socket.emit("admin_view_users");
   };
 
   const handleLogout = () => {
