@@ -19,7 +19,6 @@ function App() {
 
   const [history, setHistory] = useState([]);
   const [lotteryList, setLotteryList] = useState([]);
-  const [showLotteryButtonVisible, setShowLotteryButtonVisible] = useState(false);
 
   const [adminMode, setAdminMode] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
@@ -60,8 +59,10 @@ function App() {
       setHistory(u.history || []);
       setLotteryList(u.lotteryList || []);
 
-      // lotteryList がある場合はボタンを表示
-      setShowLotteryButtonVisible((u.lotteryList || []).length > 0);
+      // --- lotteryList が存在する場合はボタンを表示できる ---
+      if ((u.lotteryList || []).length > 0) {
+        setShowLottery(false); // 初期は非表示でもボタン自体は表示される
+      }
 
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
@@ -107,10 +108,7 @@ function App() {
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => setDrawResult(res));
     socket.on("lottery_winner", () => setLotteryWinner(true));
-    socket.on("update_lottery_list", (list) => {
-      setLotteryList(list);
-      setShowLotteryButtonVisible(list.length > 0);
-    });
+    socket.on("update_lottery_list", (list) => setLotteryList(list));
 
     // --- 自動ログアウト時間をサーバーから取得 ---
     socket.on("admin_current_auto_logout", ({ hours }) => {
@@ -313,7 +311,7 @@ function App() {
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
         {/* 抽選当選者：ボタンで表示切替 */}
-        {showLotteryButtonVisible && (
+        {lotteryList && (
           <div style={{ marginTop:"15px" }}>
             <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
               {showLottery ? "抽選結果を隠す" : "抽選結果を表示"}
@@ -329,7 +327,7 @@ function App() {
         )}
 
         {/* 対戦履歴 */}
-        <div style={{ marginTop: showLotteryButtonVisible ? "15px" : "0px" }}>
+        <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
           <div className="history-list">
             <h4>対戦履歴</h4>
             <table>
