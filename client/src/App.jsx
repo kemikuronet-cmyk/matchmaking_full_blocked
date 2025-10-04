@@ -123,6 +123,15 @@ function App() {
     return () => socket.off();
   }, []);
 
+  // --- ポーリングでユーザー一覧を常に最新に ---
+  useEffect(() => {
+    if (!adminMode) return;
+    const interval = setInterval(() => {
+      socket.emit("admin_view_users");
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [adminMode]);
+
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
