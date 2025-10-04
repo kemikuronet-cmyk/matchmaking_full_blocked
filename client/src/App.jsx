@@ -42,6 +42,7 @@ function App() {
   useEffect(() => {
     if (!loginAttempted.current) {
       const savedUser = localStorage.getItem("user");
+      const savedAdmin = localStorage.getItem("adminMode");
       if (savedUser) {
         const u = JSON.parse(savedUser);
         setUser(u);
@@ -49,6 +50,7 @@ function App() {
         setName(u.name);
         socket.emit("login", { name: u.name, sessionId: u.sessionId });
       }
+      if (savedAdmin === "true") setAdminMode(true);
       loginAttempted.current = true;
     }
 
@@ -60,7 +62,6 @@ function App() {
       setSearching(u.status === "searching");
       setHistory(u.history || []);
       setLotteryList(u.lotteryList || []);
-
       if ((u.lotteryList || []).length > 0) setShowLottery(false);
 
       if (u.currentOpponent) {
@@ -89,6 +90,7 @@ function App() {
         alert("一定時間が経過したため、自動ログアウトされました。");
       }
       localStorage.removeItem("user");
+      localStorage.removeItem("adminMode");
       setLoggedIn(false);
       setAdminMode(false);
       setUser(null);
@@ -103,6 +105,7 @@ function App() {
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
     socket.on("admin_ok", () => {
       setAdminMode(true);
+      localStorage.setItem("adminMode", "true"); // 保存
       socket.emit("admin_get_auto_logout");
     });
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
@@ -135,7 +138,8 @@ function App() {
 
   const handleAdminLogout = () => {
     if (!window.confirm("管理者モードを解除しますか？")) return;
-    setAdminMode(false); // user情報は保持
+    setAdminMode(false);
+    localStorage.removeItem("adminMode"); // 削除
   };
 
   const handleFindOpponent = () => {
@@ -164,6 +168,7 @@ function App() {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
     localStorage.removeItem("user");
+    localStorage.removeItem("adminMode"); // 管理者状態も削除
     setUser(null);
     setLoggedIn(false);
     setSearching(false);
@@ -226,6 +231,7 @@ function App() {
     );
   }
 
+  // 管理者画面
   if (adminMode) {
     return (
       <div className="app">
