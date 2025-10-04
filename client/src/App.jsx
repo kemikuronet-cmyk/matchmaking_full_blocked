@@ -18,8 +18,8 @@ function App() {
   const [deskNum, setDeskNum] = useState(null);
 
   const [history, setHistory] = useState([]);
-  const [lotteryList, setLotteryList] = useState([]);
-  const [lotteryTitle, setLotteryTitle] = useState(""); // ★ 新規追加
+  const [lotteryList, setLotteryList] = useState([]); // [{title, winners:[{name}]}]
+  const [lotteryWinnerTitles, setLotteryWinnerTitles] = useState([]); // 当選タイトルリスト
 
   const [adminMode, setAdminMode] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
@@ -31,7 +31,6 @@ function App() {
   const [minLoginHours, setMinLoginHours] = useState(0);
   const [drawResult, setDrawResult] = useState([]);
 
-  const [lotteryWinner, setLotteryWinner] = useState(false);
   const [showLottery, setShowLottery] = useState(false);
 
   const [autoLogoutHours, setAutoLogoutHours] = useState(12);
@@ -61,8 +60,9 @@ function App() {
       setSearching(u.status === "searching");
       setHistory(u.history || []);
       setLotteryList(u.lotteryList || []);
-      setLotteryTitle(u.lotteryTitle || "");
-      if ((u.lotteryList || []).length > 0) setShowLottery(false);
+      // 当選タイトルを抽出
+      const wonTitles = (u.lotteryList || []).filter(l => l.winners.some(w => w.name === u.name)).map(l => l.title);
+      setLotteryWinnerTitles(wonTitles);
 
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
@@ -86,9 +86,7 @@ function App() {
     });
 
     socket.on("force_logout", ({ reason }) => {
-      if (reason === "auto") {
-        alert("一定時間が経過したため、自動ログアウトされました。");
-      }
+      if (reason === "auto") alert("一定時間が経過したため、自動ログアウトされました。");
       localStorage.removeItem("user");
       localStorage.removeItem("adminMode");
       setLoggedIn(false);
@@ -97,7 +95,7 @@ function App() {
       setSearching(false);
       setOpponent(null);
       setDeskNum(null);
-      setLotteryWinner(false);
+      setLotteryWinnerTitles([]);
       setName("");
     });
 
@@ -111,21 +109,16 @@ function App() {
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => {
-      if (res?.title) setLotteryTitle(res.title);
-      setDrawResult(res?.winners || []);
+      if (res?.title) setDrawResult(res.winners || []);
     });
-    socket.on("lottery_winner", ({ title }) => {
-      setLotteryWinner(true);
-      setLotteryTitle(title || "");
+    socket.on("lottery_winner", (titles) => {
+      setLotteryWinnerTitles(titles || []);
     });
-    socket.on("update_lottery_list", ({ list, title }) => {
+    socket.on("update_lottery_list", (list) => {
       setLotteryList(list || []);
-      setLotteryTitle(title || "");
     });
 
-    socket.on("admin_current_auto_logout", ({ hours }) => {
-      setAutoLogoutHours(hours);
-    });
+    socket.on("admin_current_auto_logout", ({ hours }) => setAutoLogoutHours(hours));
     socket.on("admin_set_auto_logout_ok", ({ hours }) => {
       setAutoLogoutHours(hours);
       alert(`自動ログアウト時間を ${hours} 時間に設定しました`);
@@ -192,13 +185,14 @@ function App() {
     setSearching(false);
     setOpponent(null);
     setDeskNum(null);
-    setLotteryWinner(false);
+    setLotteryWinnerTitles([]);
     setName("");
   };
 
   const handleToggleMatch = () => socket.emit("admin_toggle_match", { enable: !matchEnabled });
   const handleDrawLots = () => {
     socket.emit("admin_draw_lots", { 
+      title: lotteryTitle,
       count: drawCount,
       minBattles: minMatches,
       minLoginMinutes: minLoginHours * 60
@@ -213,7 +207,6 @@ function App() {
     socket.emit("admin_set_auto_logout", { hours: autoLogoutHours });
   };
 
-  // --- 新規追加: 特定ユーザーをログアウト ---
   const handleLogoutUser = (userId, userName) => {
     if (!window.confirm(`${userName} をログアウトさせますか？`)) return;
     socket.emit("admin_logout_user", { userId });
@@ -254,14 +247,12 @@ function App() {
         <div className="header">管理者画面</div>
         <div className="admin-screen">
 
-          {/* 1. マッチング開始 */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleToggleMatch}>
               {matchEnabled ? "マッチング中" : "マッチング開始"}
             </button>
           </div>
 
-          {/* 2. 抽選 */}
           <div className="admin-section">
             <h3>抽選</h3>
             <label>
@@ -280,7 +271,6 @@ function App() {
             </ul>
           </div>
 
-          {/* 3. 自動ログアウト設定 */}
           <div className="admin-section">
             <h3>自動ログアウト設定</h3>
             <label>
@@ -292,12 +282,9 @@ function App() {
                 onChange={(e) => setAutoLogoutHours(Number(e.target.value))}
               />
             </label>
-            <button className="main-btn" onClick={handleUpdateAutoLogout}>
-              更新
-            </button>
+            <button className="main-btn" onClick={handleUpdateAutoLogout}>更新</button>
           </div>
 
-          {/* 4. ユーザー一覧（常時表示） */}
           <div className="admin-section">
             <h3>ログイン中のユーザー</h3>
             <table style={{ color: "white", borderCollapse: "collapse" }}>
@@ -330,7 +317,6 @@ function App() {
             <button className="main-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
           </div>
 
-          {/* 5. 管理者モード解除 */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleAdminLogout}>管理者画面からログアウト</button>
           </div>
@@ -350,7 +336,6 @@ function App() {
     );
   }
 
-  const isWinner = lotteryList.some(u => u.name === user?.name);
   const displayHistory = history || [];
 
   return (
@@ -362,22 +347,23 @@ function App() {
         {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
-        {lotteryList && (
+        {lotteryList && lotteryList.length > 0 && (
           <div style={{ marginTop:"15px" }}>
             <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
               {showLottery ? "抽選結果を閉じる" : "抽選結果"}
             </button>
             {showLottery && (
               <div style={{ marginTop:"10px", color:"yellow" }}>
-                {lotteryList.length === 0 ? (
-                  <p style={{ color:"lightgray" }}>発表されていません</p>
-                ) : (
-                  <>
-                    {isWinner && <p style={{ color:"red", fontWeight:"bold" }}>「{lotteryTitle}」が当選しました！</p>}
-                    <h4>当選者一覧</h4>
-                    <ul>{lotteryList.map((u,i) => <li key={i}>{u.name}</li>)}</ul>
-                  </>
-                )}
+                {lotteryList.map((l, idx) => {
+                  const isWinner = lotteryWinnerTitles.includes(l.title);
+                  return (
+                    <div key={idx} style={{ marginBottom:"10px" }}>
+                      {isWinner && <p style={{ color:"red", fontWeight:"bold" }}>「{l.title}」が当選しました！</p>}
+                      <h4>{l.title} 当選者一覧</h4>
+                      <ul>{l.winners.map((w, i) => <li key={i}>{w.name}</li>)}</ul>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
