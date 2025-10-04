@@ -92,6 +92,7 @@ io.on("connection", (socket) => {
       .filter(([_, sids]) => sids.includes(user.sessionId))
       .map(([title, _]) => title);
 
+    // --- 修正: ユーザー用の lotteryList を { title, winners: [{name}] } 形式に統一 ---
     const currentLotteryList = Object.entries(lotteryResults).map(([title, sids]) => ({
       title,
       winners: winnerNamesFromSessionIds(sids)
@@ -217,7 +218,6 @@ io.on("connection", (socket) => {
     const candidates = users.filter(u => {
       const loginMinutes = (now - new Date(u.loginTime)) / 60000;
       const battles = u.history?.length || 0;
-      // 過去のどの抽選にも当選していないユーザーのみ
       const alreadyWon = Object.values(lotteryResults).some(arr => arr.includes(u.sessionId));
       return battles >= minBattles && loginMinutes >= minLoginMinutes && !alreadyWon;
     });
@@ -228,22 +228,20 @@ io.on("connection", (socket) => {
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
     lotteryResults[title] = winners.map(u => u.sessionId);
 
-    // 全ユーザーに送信
+    // --- 修正: 全ユーザーに送信する形式を統一 ---
     const listForUsers = Object.entries(lotteryResults).map(([t, sids]) => ({
       title: t,
       winners: winnerNamesFromSessionIds(sids)
     }));
-    users.forEach(u => {
-      io.to(u.id).emit("update_lottery_list", listForUsers);
 
-      // 当選抽選タイトルを赤字表示用に通知
+    users.forEach(u => {
+      io.to(u.id).emit("update_lottery_list", { list: listForUsers, title }); // ← 形式統一
       const wonTitles = Object.entries(lotteryResults)
         .filter(([t, sids]) => sids.includes(u.sessionId))
         .map(([t, _]) => t);
-      if (wonTitles.length > 0) io.to(u.id).emit("lottery_winner", wonTitles);
+      if (wonTitles.length > 0) io.to(u.id).emit("lottery_winner", { title: wonTitles[0] }); // ← 形式修正
     });
 
-    // 管理者にも送信
     const winnerNames = winners.map(u => ({ name: u.name }));
     socket.emit("admin_draw_result", { winners: winnerNames, title });
   });
