@@ -19,6 +19,7 @@ function App() {
 
   const [history, setHistory] = useState([]);
   const [lotteryList, setLotteryList] = useState([]);
+  const [lotteryTitle, setLotteryTitle] = useState(""); // ★ 新規追加
 
   const [adminMode, setAdminMode] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
@@ -60,6 +61,7 @@ function App() {
       setSearching(u.status === "searching");
       setHistory(u.history || []);
       setLotteryList(u.lotteryList || []);
+      setLotteryTitle(u.lotteryTitle || "");
       if ((u.lotteryList || []).length > 0) setShowLottery(false);
 
       if (u.currentOpponent) {
@@ -108,9 +110,18 @@ function App() {
     });
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
     socket.on("admin_user_list", (list) => setUsersList(list));
-    socket.on("admin_draw_result", (res) => setDrawResult(res));
-    socket.on("lottery_winner", () => setLotteryWinner(true));
-    socket.on("update_lottery_list", (list) => setLotteryList(list));
+    socket.on("admin_draw_result", (res) => {
+      if (res?.title) setLotteryTitle(res.title);
+      setDrawResult(res?.winners || []);
+    });
+    socket.on("lottery_winner", ({ title }) => {
+      setLotteryWinner(true);
+      setLotteryTitle(title || "");
+    });
+    socket.on("update_lottery_list", ({ list, title }) => {
+      setLotteryList(list || []);
+      setLotteryTitle(title || "");
+    });
 
     socket.on("admin_current_auto_logout", ({ hours }) => {
       setAutoLogoutHours(hours);
@@ -189,8 +200,8 @@ function App() {
   const handleDrawLots = () => {
     socket.emit("admin_draw_lots", { 
       count: drawCount,
-      minMatches: minMatches,
-      minLoginHours: minLoginHours
+      minBattles: minMatches,
+      minLoginMinutes: minLoginHours * 60
     });
   };
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
@@ -253,6 +264,13 @@ function App() {
           {/* 2. 抽選 */}
           <div className="admin-section">
             <h3>抽選</h3>
+            <label>
+              抽選名: 
+              <input type="text" value={lotteryTitle} onChange={e => setLotteryTitle(e.target.value)} />
+              <button className="main-btn" onClick={() => socket.emit("admin_set_lottery_title", { title: lotteryTitle })}>
+                設定
+              </button>
+            </label>
             <label>抽選人数: <input type="number" min="1" value={drawCount} onChange={e => setDrawCount(Number(e.target.value))}/></label>
             <label>対戦数以上: <input type="number" min="0" value={minMatches} onChange={e => setMinMatches(Number(e.target.value))}/></label>
             <label>ログイン時間以上(時間): <input type="number" min="0" value={minLoginHours} onChange={e => setMinLoginHours(Number(e.target.value))}/></label>
@@ -355,7 +373,7 @@ function App() {
                   <p style={{ color:"lightgray" }}>発表されていません</p>
                 ) : (
                   <>
-                    {isWinner && <p style={{ color:"red", fontWeight:"bold" }}>当選しました！</p>}
+                    {isWinner && <p style={{ color:"red", fontWeight:"bold" }}>「{lotteryTitle}」抽選に当選しました！</p>}
                     <h4>当選者一覧</h4>
                     <ul>{lotteryList.map((u,i) => <li key={i}>{u.name}</li>)}</ul>
                   </>
