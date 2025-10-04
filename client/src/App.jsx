@@ -144,7 +144,7 @@ function App() {
   };
 
   const handleAdminLogout = () => {
-    if (!window.confirm("管理者モードを解除しますか？")) return;
+    if (!window.confirm("ログイン画面に戻りますか？")) return;
     setAdminMode(false);
     localStorage.removeItem("adminMode");
   };
