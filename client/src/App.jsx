@@ -46,7 +46,7 @@ function App() {
         const u = JSON.parse(savedUser);
         setUser(u);
         setLoggedIn(true);
-        setName(u.name); // ユーザー名を保持
+        setName(u.name);
         socket.emit("login", { name: u.name, sessionId: u.sessionId });
       }
       loginAttempted.current = true;
@@ -61,9 +61,7 @@ function App() {
       setHistory(u.history || []);
       setLotteryList(u.lotteryList || []);
 
-      if ((u.lotteryList || []).length > 0) {
-        setShowLottery(false);
-      }
+      if ((u.lotteryList || []).length > 0) setShowLottery(false);
 
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
@@ -136,7 +134,7 @@ function App() {
   };
 
   const handleAdminLogout = () => {
-    if (!window.confirm("ログイン画面に戻りますか？")) return;
+    if (!window.confirm("管理者モードを解除しますか？")) return;
     setAdminMode(false); // user情報は保持
   };
 
@@ -166,8 +164,13 @@ function App() {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
     localStorage.removeItem("user");
+    setUser(null);
+    setLoggedIn(false);
+    setSearching(false);
+    setOpponent(null);
+    setDeskNum(null);
     setLotteryWinner(false);
-    window.location.reload();
+    setName("");
   };
 
   const handleToggleMatch = () => socket.emit("admin_toggle_match", { enable: !matchEnabled });
@@ -288,7 +291,6 @@ function App() {
             </ul>
           </div>
 
-          {/* 管理者モード解除ボタン */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleAdminLogout}>管理者画面からログアウト</button>
           </div>
