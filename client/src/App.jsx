@@ -18,7 +18,7 @@ function App() {
   const [deskNum, setDeskNum] = useState(null);
 
   const [history, setHistory] = useState([]);
-  const [lotteryList, setLotteryList] = useState([]); // 配列 [{ name }]
+  const [lotteryList, setLotteryList] = useState([]);
   const [lotteryTitle, setLotteryTitle] = useState("");
 
   const [adminMode, setAdminMode] = useState(false);
@@ -359,7 +359,7 @@ function App() {
                   <p style={{ color:"lightgray" }}>発表されていません</p>
                 ) : (
                   <>
-                    {lotteryWinner && lotteryTitle && (
+                    {isWinner && lotteryTitle && (
                       <p style={{ color:"red", fontWeight:"bold" }}>「{lotteryTitle}」が当選しました！</p>
                     )}
                     <h4>当選者一覧</h4>
