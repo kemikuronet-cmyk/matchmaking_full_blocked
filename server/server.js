@@ -45,12 +45,10 @@ setInterval(() => {
     const loginTime = new Date(u.loginTime);
     const hoursElapsed = (now - loginTime) / (1000 * 60 * 60);
     if (hoursElapsed >= autoLogoutHours) {
-      // ★ 自動ログアウトであることを reason で送信
       io.to(u.id).emit("force_logout", { reason: "auto" });
       console.log(`自動ログアウト: ${u.name}`);
     }
   });
-  // ログアウト済みを削除
   users = users.filter(u => {
     const loginTime = new Date(u.loginTime);
     const hoursElapsed = (now - loginTime) / (1000 * 60 * 60);
@@ -90,7 +88,6 @@ io.on("connection", (socket) => {
       : null;
 
     const isWinner = lotteryWinners.includes(user.sessionId);
-
     const currentLotteryList = winnerNamesFromSessionIds(lotteryWinners);
 
     socket.emit("login_ok", {
@@ -188,7 +185,6 @@ io.on("connection", (socket) => {
 
     const deskNum = user.deskNum;
 
-    // 状態リセット
     user.status = "idle"; user.opponentSessionId = null; user.deskNum = null;
     opponent.status = "idle"; opponent.opponentSessionId = null; opponent.deskNum = null;
     if (matches[deskNum]) delete matches[deskNum];
@@ -235,10 +231,33 @@ io.on("connection", (socket) => {
 
   // --- 管理者：全ユーザー強制ログアウト ---
   socket.on("admin_logout_all", () => {
-    users.forEach(u => io.to(u.id).emit("force_logout", { reason: "manual" })); // ★ manual
+    users.forEach(u => io.to(u.id).emit("force_logout", { reason: "manual" }));
     users = [];
     matches = {};
     lotteryWinners = [];
+  });
+
+  // --- 新規：管理者による特定ユーザー強制ログアウト ---
+  socket.on("admin_logout_user", ({ userId }) => {
+    const target = users.find(u => u.id === userId);
+    if (target) {
+      io.to(target.id).emit("force_logout", { reason: "admin" });
+
+      // マッチング中なら相手も解除
+      if (target.opponentSessionId) {
+        const opponent = users.find(u => u.sessionId === target.opponentSessionId);
+        if (opponent) {
+          opponent.status = "idle";
+          opponent.opponentSessionId = null;
+          opponent.deskNum = null;
+          io.to(opponent.id).emit("return_to_menu_battle");
+        }
+        if (matches[target.deskNum]) delete matches[target.deskNum];
+      }
+
+      // ユーザー削除
+      users = users.filter(u => u.id !== userId);
+    }
   });
 
   // --- 対戦履歴 ---
@@ -254,7 +273,7 @@ io.on("connection", (socket) => {
     if (userIndex !== -1) users.splice(userIndex, 1);
     const deskNum = Object.keys(matches).find(d => matches[d].includes(userIndex));
     if (deskNum) delete matches[deskNum];
-    socket.emit("force_logout", { reason: "manual" }); // ★ 手動ログアウト
+    socket.emit("force_logout", { reason: "manual" });
   });
 });
 
