@@ -28,6 +28,16 @@ function assignDeskNum() {
   return deskNum;
 }
 
+// ヘルパー: sessionId 配列 -> { name } 配列
+function winnerNamesFromSessionIds(sessionIds) {
+  return sessionIds
+    .map(sid => {
+      const u = users.find(x => x.sessionId === sid);
+      return u ? { name: u.name } : null;
+    })
+    .filter(Boolean);
+}
+
 // --- 自動ログアウトチェック ---
 setInterval(() => {
   const now = new Date();
@@ -82,7 +92,11 @@ io.on("connection", (socket) => {
 
     const isWinner = lotteryWinners.includes(user.sessionId);
 
-    socket.emit("login_ok", { ...user, currentOpponent, deskNum: user.deskNum, lotteryWinner: isWinner });
+    // 追加: 現在の抽選当選者一覧（名前リスト）を送る
+    const currentLotteryList = winnerNamesFromSessionIds(lotteryWinners);
+
+    // login_ok に user の情報、履歴、現在の抽選当選者を含めて送信
+    socket.emit("login_ok", { ...user, currentOpponent, deskNum: user.deskNum, lotteryWinner: isWinner, history: user.history || [], lotteryList: currentLotteryList });
   });
 
   // --- 管理者ログイン ---
@@ -165,9 +179,9 @@ io.on("connection", (socket) => {
     if (!opponent) return;
 
     const now = new Date();
-    // ★ 日本語で保存（管理画面と一致）
-    user.history.push({ opponent: opponent.name, result: "勝ち", startTime: now, endTime: now });
-    opponent.history.push({ opponent: user.name, result: "負け", startTime: now, endTime: now });
+    // ★ 表記を WIN / LOSE に統一して保存
+    user.history.push({ opponent: opponent.name, result: "WIN", startTime: now, endTime: now });
+    opponent.history.push({ opponent: user.name, result: "LOSE", startTime: now, endTime: now });
 
     const deskNum = user.deskNum;
 
@@ -176,7 +190,7 @@ io.on("connection", (socket) => {
     opponent.status = "idle"; opponent.opponentSessionId = null; opponent.deskNum = null;
     if (matches[deskNum]) delete matches[deskNum];
 
-    // 双方に履歴を送信
+    // 双方に履歴を送信（クライアントが表示を更新できるように）
     io.to(user.id).emit("history", user.history);
     io.to(opponent.id).emit("history", opponent.history);
 
@@ -209,6 +223,7 @@ io.on("connection", (socket) => {
     lotteryWinners = winners.map(u => u.sessionId);
 
     const winnerNames = winners.map(u => ({ name: u.name }));
+    // 全クライアントに最新の当選者リストを通知
     users.forEach(u => io.to(u.id).emit("update_lottery_list", winnerNames));
     winners.forEach(u => {
       const s = users.find(us => us.sessionId === u.sessionId);
