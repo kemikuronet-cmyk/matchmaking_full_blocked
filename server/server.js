@@ -19,7 +19,7 @@ let users = [];
 let matches = {}; // deskNum -> [sessionId1, sessionId2]
 let matchEnabled = false;
 let lotteryWinners = []; // sessionId 配列
-let lotteryTitle = "抽選結果"; // ★ 新規追加: 抽選名
+let lotteryTitle = "抽選結果"; // ★ 抽選名
 let autoLogoutHours = 12; // 初期値: 12時間
 
 // --- 卓番号割り当て ---
@@ -98,7 +98,7 @@ io.on("connection", (socket) => {
       lotteryWinner: isWinner,
       history: user.history || [],
       lotteryList: currentLotteryList,
-      lotteryTitle   // ★ 抽選名を一緒に送信
+      lotteryTitle // ★ 抽選名を送信
     });
   });
 
@@ -222,13 +222,16 @@ io.on("connection", (socket) => {
     lotteryWinners = winners.map(u => u.sessionId);
 
     const winnerNames = winners.map(u => ({ name: u.name }));
-    users.forEach(u => io.to(u.id).emit("update_lottery_list", { list: winnerNames, title: lotteryTitle })); // ★ 抽選名も送信
+    // ★ 抽選名込みで全ユーザーに送信
+    users.forEach(u => io.to(u.id).emit("update_lottery_list", { list: winnerNames, title: lotteryTitle }));
+    // ★ 当選ユーザーに個別通知
     winners.forEach(u => {
       const s = users.find(us => us.sessionId === u.sessionId);
-      if (s) io.to(s.id).emit("lottery_winner");
+      if (s) io.to(s.id).emit("lottery_winner", { title: lotteryTitle });
     });
 
-    socket.emit("admin_draw_result", { winners: winnerNames, title: lotteryTitle }); // ★ 管理者へも送信
+    // 管理者にも結果送信
+    socket.emit("admin_draw_result", { winners: winnerNames, title: lotteryTitle });
   });
 
   // --- 管理者：抽選名設定 ---
@@ -248,13 +251,12 @@ io.on("connection", (socket) => {
     lotteryWinners = [];
   });
 
-  // --- 新規：管理者による特定ユーザー強制ログアウト ---
+  // --- 管理者による特定ユーザー強制ログアウト ---
   socket.on("admin_logout_user", ({ userId }) => {
     const target = users.find(u => u.id === userId);
     if (target) {
       io.to(target.id).emit("force_logout", { reason: "admin" });
 
-      // マッチング中なら相手も解除
       if (target.opponentSessionId) {
         const opponent = users.find(u => u.sessionId === target.opponentSessionId);
         if (opponent) {
@@ -266,7 +268,6 @@ io.on("connection", (socket) => {
         if (matches[target.deskNum]) delete matches[target.deskNum];
       }
 
-      // ユーザー削除
       users = users.filter(u => u.id !== userId);
     }
   });
