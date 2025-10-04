@@ -373,7 +373,7 @@ function App() {
                   <p style={{ color:"lightgray" }}>発表されていません</p>
                 ) : (
                   <>
-                    {isWinner && <p style={{ color:"red", fontWeight:"bold" }}>「{lotteryTitle}」抽選に当選しました！</p>}
+                    {isWinner && <p style={{ color:"red", fontWeight:"bold" }}>「{lotteryTitle}」が当選しました！</p>}
                     <h4>当選者一覧</h4>
                     <ul>{lotteryList.map((u,i) => <li key={i}>{u.name}</li>)}</ul>
                   </>
