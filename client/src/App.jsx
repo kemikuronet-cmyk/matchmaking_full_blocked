@@ -323,7 +323,7 @@ function App() {
       <div className="header">{user?.name}</div>
       <div className="menu-screen">
         {!searching && matchEnabled && <button className="main-btn" onClick={handleFindOpponent}>対戦相手を探す</button>}
-        {searching && <button className="main-btn" onClick={handleCancelSearch}>キャンセル</button>}
+        {searching && <button className="main-btn" onClick={handleCancelSearch}>対戦相手を探しています…</button>}
         {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
