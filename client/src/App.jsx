@@ -24,7 +24,6 @@ function App() {
   const [adminPassword, setAdminPassword] = useState("");
   const [usersList, setUsersList] = useState([]);
   const [matchEnabled, setMatchEnabled] = useState(false);
-  const [showUserList, setShowUserList] = useState(false);
 
   const [drawCount, setDrawCount] = useState(1);
   const [minMatches, setMinMatches] = useState(0);
@@ -34,7 +33,6 @@ function App() {
   const [lotteryWinner, setLotteryWinner] = useState(false);
   const [showLottery, setShowLottery] = useState(false);
 
-  // --- 自動ログアウト時間 ---
   const [autoLogoutHours, setAutoLogoutHours] = useState(12);
 
   const loginAttempted = useRef(false);
@@ -105,7 +103,7 @@ function App() {
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
     socket.on("admin_ok", () => {
       setAdminMode(true);
-      localStorage.setItem("adminMode", "true"); // 保存
+      localStorage.setItem("adminMode", "true");
       socket.emit("admin_get_auto_logout");
     });
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
@@ -139,7 +137,7 @@ function App() {
   const handleAdminLogout = () => {
     if (!window.confirm("管理者モードを解除しますか？")) return;
     setAdminMode(false);
-    localStorage.removeItem("adminMode"); // 削除
+    localStorage.removeItem("adminMode");
   };
 
   const handleFindOpponent = () => {
@@ -168,7 +166,7 @@ function App() {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
     localStorage.removeItem("user");
-    localStorage.removeItem("adminMode"); // 管理者状態も削除
+    localStorage.removeItem("adminMode");
     setUser(null);
     setLoggedIn(false);
     setSearching(false);
@@ -179,13 +177,6 @@ function App() {
   };
 
   const handleToggleMatch = () => socket.emit("admin_toggle_match", { enable: !matchEnabled });
-  const handleViewUsers = () => {
-    if (showUserList) setShowUserList(false);
-    else {
-      socket.emit("admin_view_users");
-      setShowUserList(true);
-    }
-  };
   const handleDrawLots = () => {
     socket.emit("admin_draw_lots", { 
       count: drawCount,
@@ -194,7 +185,6 @@ function App() {
     });
   };
   const handleAdminLogoutAll = () => socket.emit("admin_logout_all");
-
   const handleUpdateAutoLogout = () => {
     if (autoLogoutHours <= 0.01) {
       alert("1時間以上を指定してください");
@@ -257,35 +247,7 @@ function App() {
             </ul>
           </div>
 
-          {/* 3. ユーザー一覧 */}
-          <div className="admin-section">
-            <button className="main-btn" onClick={handleViewUsers}>ユーザー一覧表示</button>
-            {showUserList && (
-              <table style={{ color: "white", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th>ID</th><th>名前</th><th>対戦数</th><th>勝</th><th>敗</th><th>ログイン時間</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usersList.map(u => {
-                    const win = u.history ? u.history.filter(h => h.result === "WIN").length : 0;
-                    const lose = u.history ? u.history.filter(h => h.result === "LOSE").length : 0;
-                    const loginTime = u.loginTime ? new Date(u.loginTime).toLocaleString() : "未ログイン";
-                    return (
-                      <tr key={u.id}>
-                        <td>{u.id}</td><td>{u.name}</td><td>{u.history?.length || 0}</td>
-                        <td>{win}</td><td>{lose}</td><td>{loginTime}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-            <button className="main-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
-          </div>
-
-          {/* 4. 自動ログアウト設定 */}
+          {/* 3. 自動ログアウト設定 */}
           <div className="admin-section">
             <h3>自動ログアウト設定</h3>
             <label>
@@ -300,6 +262,32 @@ function App() {
             <button className="main-btn" onClick={handleUpdateAutoLogout}>
               更新
             </button>
+          </div>
+
+          {/* 4. ユーザー一覧（常時表示） */}
+          <div className="admin-section">
+            <h3>ユーザー一覧</h3>
+            <table style={{ color: "white", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th>番号</th><th>名前</th><th>対戦数</th><th>勝</th><th>敗</th><th>ログイン時間</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usersList.map((u, index) => {
+                  const win = u.history ? u.history.filter(h => h.result === "WIN").length : 0;
+                  const lose = u.history ? u.history.filter(h => h.result === "LOSE").length : 0;
+                  const loginTime = u.loginTime ? new Date(u.loginTime).toLocaleString() : "未ログイン";
+                  return (
+                    <tr key={u.id}>
+                      <td>{index + 1}</td><td>{u.name}</td><td>{u.history?.length || 0}</td>
+                      <td>{win}</td><td>{lose}</td><td>{loginTime}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <button className="main-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
           </div>
 
           {/* 5. 管理者モード解除 */}
