@@ -275,7 +275,7 @@ function App() {
 
           {/* 4. ユーザー一覧（常時表示） */}
           <div className="admin-section">
-            <h3>ユーザー一覧</h3>
+            <h3>ログイン中のユーザー</h3>
             <table style={{ color: "white", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
