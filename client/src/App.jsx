@@ -344,32 +344,33 @@ function App() {
             <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
               {showLottery ? "抽選結果を閉じる" : "抽選結果"}
             </button>
-{showLottery && (
-  <div style={{ marginTop:"10px", color:"yellow" }}>
-    {lotteryList.length === 0 ? (
-      <p style={{ color:"lightgray" }}>発表されていません</p>
-    ) : (
-      <>
-        {lotteryWinner && lotteryTitle && (
-          <p style={{ color:"red", fontWeight:"bold" }}>
-            「{lotteryTitle}」に当選しました！
-          </p>
-        )}
-        {lotteryList.map((lottery, idx) => (
-          <div key={idx} style={{ marginBottom:"10px" }}>
-            <h4>{lottery.title} 当選者一覧</h4>
-            <ul>
-              {lottery.winners.map((w, i) => (
-                <li key={i}>{w.name}</li>
-              ))}
-            </ul>
+            {showLottery && (
+              <div style={{ marginTop:"10px", color:"yellow" }}>
+                {lotteryList.length === 0 ? (
+                  <p style={{ color:"lightgray" }}>発表されていません</p>
+                ) : (
+                  <>
+                    {lotteryWinner && lotteryTitle && (
+                      <p style={{ color:"red", fontWeight:"bold" }}>
+                        「{lotteryTitle}」に当選しました！
+                      </p>
+                    )}
+                    {lotteryList.map((lottery, idx) => (
+                      <div key={idx} style={{ marginBottom:"10px" }}>
+                        <h4>{lottery.title} 当選者一覧</h4>
+                        <ul>
+                          {lottery.winners.map((w, i) => (
+                            <li key={i}>{w.name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
           </div>
-        ))}
-      </>
-    )}
-  </div>
-)}   {/* ← ここで確実に閉じる */}
-
+        )}
 
         <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
           <div className="history-list">
