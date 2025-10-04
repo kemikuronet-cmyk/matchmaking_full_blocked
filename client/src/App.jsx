@@ -59,9 +59,8 @@ function App() {
       setHistory(u.history || []);
       setLotteryList(u.lotteryList || []);
 
-      // --- lotteryList が存在する場合はボタンを表示できる ---
       if ((u.lotteryList || []).length > 0) {
-        setShowLottery(false); // 初期は非表示でもボタン自体は表示される
+        setShowLottery(false);
       }
 
       if (u.currentOpponent) {
@@ -85,9 +84,11 @@ function App() {
       setSearching(false);
     });
 
-    // --- 自動ログアウト処理 ---
-    socket.on("force_logout", () => {
-      alert("一定時間が経過したため、自動ログアウトされました。");
+    // --- 自動ログアウト処理（reason判定追加） ---
+    socket.on("force_logout", ({ reason }) => {
+      if (reason === "auto") {
+        alert("一定時間が経過したため、自動ログアウトされました。");
+      }
       localStorage.removeItem("user");
       setLoggedIn(false);
       setAdminMode(false);
@@ -102,7 +103,7 @@ function App() {
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
     socket.on("admin_ok", () => {
       setAdminMode(true);
-      socket.emit("admin_get_auto_logout"); // 管理者ログイン時に取得
+      socket.emit("admin_get_auto_logout");
     });
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
     socket.on("admin_user_list", (list) => setUsersList(list));
@@ -110,7 +111,6 @@ function App() {
     socket.on("lottery_winner", () => setLotteryWinner(true));
     socket.on("update_lottery_list", (list) => setLotteryList(list));
 
-    // --- 自動ログアウト時間をサーバーから取得 ---
     socket.on("admin_current_auto_logout", ({ hours }) => {
       setAutoLogoutHours(hours);
     });
@@ -151,7 +151,6 @@ function App() {
     setDeskNum(null);
     setSearching(false);
 
-    // --- 勝利報告後に履歴とユーザーリストを再取得 ---
     socket.emit("request_history");
     socket.emit("admin_view_users");
   };
@@ -228,7 +227,6 @@ function App() {
             </button>
           </div>
 
-          {/* 自動ログアウト設定 */}
           <div className="admin-section">
             <h3>自動ログアウト設定</h3>
             <label>
@@ -297,7 +295,6 @@ function App() {
     );
   }
 
-  // --- ユーザーメニュー ---
   const isWinner = lotteryList.some(u => u.name === user?.name);
   const displayHistory = history || [];
 
@@ -310,7 +307,6 @@ function App() {
         {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
-        {/* 抽選当選者：ボタンで表示切替 */}
         {lotteryList && (
           <div style={{ marginTop:"15px" }}>
             <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
@@ -332,7 +328,6 @@ function App() {
           </div>
         )}
 
-        {/* 対戦履歴 */}
         <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
           <div className="history-list">
             <h4>対戦履歴</h4>
