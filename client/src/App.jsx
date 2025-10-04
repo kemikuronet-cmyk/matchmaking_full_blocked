@@ -129,12 +129,11 @@ function App() {
       setLotteryList(list);
       setLotteryTitle(title || "");
       setShowLottery(true);
-      // 当選者が自分か確認してフラグ更新
-      if (list.some(u => u.name === user?.name)) {
-        setLotteryWinner(true);
-      } else {
-        setLotteryWinner(false);
-      }
+      // 自分がどの抽選に当たったか確認
+      const isWinner = list.some(item =>
+        Array.isArray(item.winners) && item.winners.some(w => w.name === user?.name)
+      );
+      setLotteryWinner(isWinner);
     });
 
     return () => socket.off();
@@ -355,9 +354,16 @@ function App() {
                       <p style={{ color:"red", fontWeight:"bold" }}>「{lotteryTitle}」が当選しました！</p>
                     )}
                     <h4>当選者一覧</h4>
-                    <ul>{lotteryList.map((item, i) => (
-                      <li key={i}>{item.name}</li>
-                    ))}</ul>
+                    {lotteryList.map((item, i) => (
+                      <div key={i} style={{ marginBottom: "10px" }}>
+                        <strong>「{item.title}」</strong>
+                        <ul>
+                          {item.winners?.map((w, j) => (
+                            <li key={j}>{w.name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
                   </>
                 )}
               </div>
