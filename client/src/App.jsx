@@ -237,28 +237,27 @@ function App() {
       <div className="app">
         <div className="header">管理者画面</div>
         <div className="admin-screen">
+
+          {/* 1. マッチング開始 */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleToggleMatch}>
               {matchEnabled ? "マッチング中" : "マッチング開始"}
             </button>
           </div>
 
+          {/* 2. 抽選 */}
           <div className="admin-section">
-            <h3>自動ログアウト設定</h3>
-            <label>
-              ログインからの時間(時間):
-              <input
-                type="number"
-                min="1"
-                value={autoLogoutHours}
-                onChange={(e) => setAutoLogoutHours(Number(e.target.value))}
-              />
-            </label>
-            <button className="main-btn" onClick={handleUpdateAutoLogout}>
-              更新
-            </button>
+            <h3>抽選</h3>
+            <label>抽選人数: <input type="number" min="1" value={drawCount} onChange={e => setDrawCount(Number(e.target.value))}/></label>
+            <label>対戦数以上: <input type="number" min="0" value={minMatches} onChange={e => setMinMatches(Number(e.target.value))}/></label>
+            <label>ログイン時間以上(時間): <input type="number" min="0" value={minLoginHours} onChange={e => setMinLoginHours(Number(e.target.value))}/></label>
+            <button className="main-btn" onClick={handleDrawLots}>抽選する</button>
+            <ul>
+              {drawResult.map((u,i) => <li key={i}>{u.name}</li>)}
+            </ul>
           </div>
 
+          {/* 3. ユーザー一覧 */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleViewUsers}>ユーザー一覧表示</button>
             {showUserList && (
@@ -286,20 +285,28 @@ function App() {
             <button className="main-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
           </div>
 
+          {/* 4. 自動ログアウト設定 */}
           <div className="admin-section">
-            <h3>抽選</h3>
-            <label>抽選人数: <input type="number" min="1" value={drawCount} onChange={e => setDrawCount(Number(e.target.value))}/></label>
-            <label>対戦数以上: <input type="number" min="0" value={minMatches} onChange={e => setMinMatches(Number(e.target.value))}/></label>
-            <label>ログイン時間以上(時間): <input type="number" min="0" value={minLoginHours} onChange={e => setMinLoginHours(Number(e.target.value))}/></label>
-            <button className="main-btn" onClick={handleDrawLots}>抽選する</button>
-            <ul>
-              {drawResult.map((u,i) => <li key={i}>{u.name}</li>)}
-            </ul>
+            <h3>自動ログアウト設定</h3>
+            <label>
+              ログインからの時間(時間):
+              <input
+                type="number"
+                min="1"
+                value={autoLogoutHours}
+                onChange={(e) => setAutoLogoutHours(Number(e.target.value))}
+              />
+            </label>
+            <button className="main-btn" onClick={handleUpdateAutoLogout}>
+              更新
+            </button>
           </div>
 
+          {/* 5. 管理者モード解除 */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleAdminLogout}>管理者画面からログアウト</button>
           </div>
+
         </div>
       </div>
     );
