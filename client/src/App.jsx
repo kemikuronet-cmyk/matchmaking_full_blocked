@@ -131,7 +131,7 @@ function App() {
       setShowLottery(true);
       // 自分がどの抽選に当たったか確認
       const isWinner = list.some(item =>
-        Array.isArray(item.winners) && item.winners.some(w => w.name === user?.name)
+        Array.isArray(item.winners) && item.winners.some(w => w?.name === user?.name)
       );
       setLotteryWinner(isWinner);
     });
@@ -357,10 +357,10 @@ function App() {
                     )}
                     {lotteryList.map((lottery, idx) => (
                       <div key={idx} style={{ marginBottom:"10px" }}>
-                        <h4>{lottery.title} 当選者一覧</h4>
+                        <h4>{lottery?.title || ""} 当選者一覧</h4>
                         <ul>
-                          {lottery.winners.map((w, i) => (
-                            <li key={i}>{w.name}</li>
+                          {(lottery?.winners || []).map((w, i) => (
+                            <li key={i}>{w?.name || "未登録"}</li>
                           ))}
                         </ul>
                       </div>
