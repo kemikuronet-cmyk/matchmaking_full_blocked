@@ -38,7 +38,6 @@ function App() {
 
   const loginAttempted = useRef(false);
 
-  // --- 初期化とsocketイベント登録 ---
   useEffect(() => {
     if (!loginAttempted.current) {
       const savedUser = localStorage.getItem("user");
@@ -54,7 +53,6 @@ function App() {
       loginAttempted.current = true;
     }
 
-    // --- ユーザー関連イベント ---
     socket.on("login_ok", (u) => {
       setUser(u);
       setLoggedIn(true);
@@ -64,6 +62,7 @@ function App() {
       setHistory(u.history || []);
       setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
       setLotteryTitle(u.lotteryTitle || "");
+      setLotteryWinner(false);
       if ((u.lotteryList || []).length > 0) setShowLottery(false);
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
@@ -103,7 +102,6 @@ function App() {
     socket.on("history", (hist) => setHistory(hist));
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
 
-    // --- 管理者イベント ---
     socket.on("admin_ok", () => {
       setAdminMode(true);
       localStorage.setItem("adminMode", "true");
@@ -130,13 +128,18 @@ function App() {
       if (!list || !Array.isArray(list)) return;
       setLotteryList(list);
       setLotteryTitle(title || "");
-      if (list.length > 0) setShowLottery(true);
+      setShowLottery(true);
+      // 当選者が自分か確認してフラグ更新
+      if (list.some(u => u.name === user?.name)) {
+        setLotteryWinner(true);
+      } else {
+        setLotteryWinner(false);
+      }
     });
 
     return () => socket.off();
-  }, []);
+  }, [user]);
 
-  // --- 管理者用定期更新 ---
   useEffect(() => {
     if (!adminMode) return;
     const interval = setInterval(() => {
@@ -145,7 +148,6 @@ function App() {
     return () => clearInterval(interval);
   }, [adminMode]);
 
-  // --- ハンドラ ---
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
@@ -327,7 +329,6 @@ function App() {
     );
   }
 
-  const isWinner = lotteryList.some(u => u.name === user?.name);
   const displayHistory = history || [];
 
   return (
@@ -350,7 +351,7 @@ function App() {
                   <p style={{ color:"lightgray" }}>発表されていません</p>
                 ) : (
                   <>
-                    {isWinner && lotteryTitle && (
+                    {lotteryWinner && lotteryTitle && (
                       <p style={{ color:"red", fontWeight:"bold" }}>「{lotteryTitle}」が当選しました！</p>
                     )}
                     <h4>当選者一覧</h4>
