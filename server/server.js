@@ -91,10 +91,11 @@ io.on("connection", (socket) => {
       .filter(([_, sids]) => sids.includes(user.sessionId))
       .map(([title, _]) => title);
 
-    // ユーザー用 lotteryList は winners の単純配列に変換
-    const currentLotteryList = Object.entries(lotteryResults).flatMap(([title, sids]) =>
-      winnerNamesFromSessionIds(sids)
-    );
+    // --- 修正: 抽選リストをタイトルごとにまとめて送る ---
+    const currentLotteryList = Object.entries(lotteryResults).map(([title, sids]) => ({
+      title,
+      winners: winnerNamesFromSessionIds(sids)
+    }));
 
     socket.emit("login_ok", {
       ...user,
@@ -226,11 +227,15 @@ io.on("connection", (socket) => {
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
     lotteryResults[title] = winners.map(u => u.sessionId);
 
-    // 全ユーザーに winners 単純配列で送信
-    const listForUsers = winnerNamesFromSessionIds(winners.map(u => u.sessionId));
+    // --- 修正: 全抽選結果を構造化して送る ---
+    const listForUsers = Object.entries(lotteryResults).map(([t, sids]) => ({
+      title: t,
+      winners: winnerNamesFromSessionIds(sids)
+    }));
+
     users.forEach(u => {
-      io.to(u.id).emit("update_lottery_list", listForUsers);
-      if (winners.some(w => w.sessionId === u.sessionId)) {
+      io.to(u.id).emit("update_lottery_list", { list: listForUsers, title });
+      if (lotteryResults[title].includes(u.sessionId)) {
         io.to(u.id).emit("lottery_winner", { title });
       }
     });
