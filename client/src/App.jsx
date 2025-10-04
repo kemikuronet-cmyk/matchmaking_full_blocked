@@ -256,8 +256,8 @@ function App() {
                 </thead>
                 <tbody>
                   {usersList.map(u => {
-                    const win = u.history ? u.history.filter(h => h.result === "勝ち").length : 0;
-                    const lose = u.history ? u.history.filter(h => h.result === "負け").length : 0;
+                    const win = u.history ? u.history.filter(h => h.result === "WIN").length : 0;
+                    const lose = u.history ? u.history.filter(h => h.result === "LOSE").length : 0;
                     const loginTime = u.loginTime ? new Date(u.loginTime).toLocaleString() : "未ログイン";
                     return (
                       <tr key={u.id}>
