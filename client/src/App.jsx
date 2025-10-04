@@ -202,6 +202,12 @@ function App() {
     socket.emit("admin_set_auto_logout", { hours: autoLogoutHours });
   };
 
+  // --- 新規追加: 特定ユーザーをログアウト ---
+  const handleLogoutUser = (userId, userName) => {
+    if (!window.confirm(`${userName} をログアウトさせますか？`)) return;
+    socket.emit("admin_logout_user", { userId });
+  };
+
   // --- レンダリング ---
   if (!loggedIn && !adminMode) {
     return (
@@ -279,7 +285,7 @@ function App() {
             <table style={{ color: "white", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th>番号</th><th>名前</th><th>対戦数</th><th>勝</th><th>敗</th><th>ログイン時間</th>
+                  <th>番号</th><th>名前</th><th>対戦数</th><th>勝</th><th>敗</th><th>ログイン時間</th><th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -289,8 +295,15 @@ function App() {
                   const loginTime = u.loginTime ? new Date(u.loginTime).toLocaleString() : "未ログイン";
                   return (
                     <tr key={u.id}>
-                      <td>{index + 1}</td><td>{u.name}</td><td>{u.history?.length || 0}</td>
-                      <td>{win}</td><td>{lose}</td><td>{loginTime}</td>
+                      <td>{index + 1}</td>
+                      <td>{u.name}</td>
+                      <td>{u.history?.length || 0}</td>
+                      <td>{win}</td>
+                      <td>{lose}</td>
+                      <td>{loginTime}</td>
+                      <td>
+                        <button className="main-btn" onClick={() => handleLogoutUser(u.id, u.name)}>ログアウト</button>
+                      </td>
                     </tr>
                   );
                 })}
