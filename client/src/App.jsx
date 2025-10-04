@@ -368,7 +368,8 @@ function App() {
       </>
     )}
   </div>
-)}
+)}   {/* ← ここで確実に閉じる */}
+
 
         <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
           <div className="history-list">
