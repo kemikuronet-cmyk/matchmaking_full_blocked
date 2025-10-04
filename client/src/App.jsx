@@ -46,6 +46,7 @@ function App() {
         const u = JSON.parse(savedUser);
         setUser(u);
         setLoggedIn(true);
+        setName(u.name); // ユーザー名を保持
         socket.emit("login", { name: u.name, sessionId: u.sessionId });
       }
       loginAttempted.current = true;
@@ -54,6 +55,7 @@ function App() {
     socket.on("login_ok", (u) => {
       setUser(u);
       setLoggedIn(true);
+      setName(u.name);
       localStorage.setItem("user", JSON.stringify(u));
       setSearching(u.status === "searching");
       setHistory(u.history || []);
@@ -84,7 +86,6 @@ function App() {
       setSearching(false);
     });
 
-    // --- 自動ログアウト処理（reason判定追加） ---
     socket.on("force_logout", ({ reason }) => {
       if (reason === "auto") {
         alert("一定時間が経過したため、自動ログアウトされました。");
@@ -97,6 +98,7 @@ function App() {
       setOpponent(null);
       setDeskNum(null);
       setLotteryWinner(false);
+      setName("");
     });
 
     socket.on("history", (hist) => setHistory(hist));
@@ -131,6 +133,11 @@ function App() {
   const handleAdminLogin = () => {
     if (!adminPassword) return;
     socket.emit("admin_login", { password: adminPassword });
+  };
+
+  const handleAdminLogout = () => {
+    if (!window.confirm("管理者モードを解除してログイン画面に戻りますか？")) return;
+    setAdminMode(false); // user情報は保持
   };
 
   const handleFindOpponent = () => {
@@ -279,6 +286,11 @@ function App() {
             <ul>
               {drawResult.map((u,i) => <li key={i}>{u.name}</li>)}
             </ul>
+          </div>
+
+          {/* 管理者モード解除ボタン */}
+          <div className="admin-section">
+            <button className="main-btn" onClick={handleAdminLogout}>管理者モードを解除</button>
           </div>
         </div>
       </div>
