@@ -18,8 +18,7 @@ const PORT = process.env.PORT || 4000;
 let users = [];
 let matches = {}; // deskNum -> [sessionId1, sessionId2]
 let matchEnabled = false;
-let lotteryWinners = []; // sessionId 配列
-let lotteryTitle = "抽選結果"; // ★ 抽選名
+let lotteryResults = {}; // 抽選名 -> [sessionId,...]
 let autoLogoutHours = 12; // 初期値: 12時間
 
 // --- 卓番号割り当て ---
@@ -88,17 +87,23 @@ io.on("connection", (socket) => {
       ? users.find(u => u.sessionId === user.opponentSessionId)
       : null;
 
-    const isWinner = lotteryWinners.includes(user.sessionId);
-    const currentLotteryList = winnerNamesFromSessionIds(lotteryWinners);
+    // 自分が当選している抽選タイトル
+    const wonTitles = Object.entries(lotteryResults)
+      .filter(([_, sids]) => sids.includes(user.sessionId))
+      .map(([title, _]) => title);
+
+    const currentLotteryList = Object.entries(lotteryResults).map(([title, sids]) => ({
+      title,
+      winners: winnerNamesFromSessionIds(sids)
+    }));
 
     socket.emit("login_ok", {
       ...user,
       currentOpponent,
       deskNum: user.deskNum,
-      lotteryWinner: isWinner,
+      lotteryWinner: wonTitles.length > 0,
       history: user.history || [],
-      lotteryList: currentLotteryList,
-      lotteryTitle // ★ 抽選名を送信
+      lotteryList: currentLotteryList
     });
   });
 
@@ -207,39 +212,47 @@ io.on("connection", (socket) => {
   });
 
   // --- 管理者：抽選 ---
-  socket.on("admin_draw_lots", ({ count, minBattles = 0, minLoginMinutes = 0 }) => {
+  socket.on("admin_draw_lots", ({ title, count = 1, minBattles = 0, minLoginMinutes = 0 }) => {
     const now = new Date();
     const candidates = users.filter(u => {
       const loginMinutes = (now - new Date(u.loginTime)) / 60000;
       const battles = u.history?.length || 0;
-      return battles >= minBattles && loginMinutes >= minLoginMinutes;
+      // 過去のどの抽選にも当選していないユーザーのみ
+      const alreadyWon = Object.values(lotteryResults).some(arr => arr.includes(u.sessionId));
+      return battles >= minBattles && loginMinutes >= minLoginMinutes && !alreadyWon;
     });
 
-    if (candidates.length === 0) return socket.emit("admin_draw_result", []);
+    if (candidates.length === 0) return socket.emit("admin_draw_result", { winners: [], title });
 
     const shuffled = candidates.sort(() => 0.5 - Math.random());
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
-    lotteryWinners = winners.map(u => u.sessionId);
+    lotteryResults[title] = winners.map(u => u.sessionId);
 
-    const winnerNames = winners.map(u => ({ name: u.name }));
-    // ★ 抽選名込みで全ユーザーに送信
-    users.forEach(u => io.to(u.id).emit("update_lottery_list", { list: winnerNames, title: lotteryTitle }));
-    // ★ 当選ユーザーに個別通知
-    winners.forEach(u => {
-      const s = users.find(us => us.sessionId === u.sessionId);
-      if (s) io.to(s.id).emit("lottery_winner", { title: lotteryTitle });
+    // 全ユーザーに送信
+    const listForUsers = Object.entries(lotteryResults).map(([t, sids]) => ({
+      title: t,
+      winners: winnerNamesFromSessionIds(sids)
+    }));
+    users.forEach(u => {
+      io.to(u.id).emit("update_lottery_list", listForUsers);
+
+      // 当選抽選タイトルを赤字表示用に通知
+      const wonTitles = Object.entries(lotteryResults)
+        .filter(([t, sids]) => sids.includes(u.sessionId))
+        .map(([t, _]) => t);
+      if (wonTitles.length > 0) io.to(u.id).emit("lottery_winner", wonTitles);
     });
 
-    // 管理者にも結果送信
-    socket.emit("admin_draw_result", { winners: winnerNames, title: lotteryTitle });
+    // 管理者にも送信
+    const winnerNames = winners.map(u => ({ name: u.name }));
+    socket.emit("admin_draw_result", { winners: winnerNames, title });
   });
 
   // --- 管理者：抽選名設定 ---
   socket.on("admin_set_lottery_title", ({ title }) => {
     if (typeof title === "string" && title.trim()) {
-      lotteryTitle = title.trim();
-      console.log(`抽選名を変更: ${lotteryTitle}`);
-      socket.emit("admin_set_lottery_title_ok", { title: lotteryTitle });
+      console.log(`抽選名を変更: ${title.trim()}`);
+      socket.emit("admin_set_lottery_title_ok", { title: title.trim() });
     }
   });
 
@@ -248,7 +261,7 @@ io.on("connection", (socket) => {
     users.forEach(u => io.to(u.id).emit("force_logout", { reason: "manual" }));
     users = [];
     matches = {};
-    lotteryWinners = [];
+    lotteryResults = {};
   });
 
   // --- 管理者による特定ユーザー強制ログアウト ---
