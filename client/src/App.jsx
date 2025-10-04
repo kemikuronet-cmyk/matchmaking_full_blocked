@@ -318,9 +318,15 @@ function App() {
             </button>
             {showLottery && (
               <div style={{ marginTop:"10px", color:"yellow" }}>
-                {isWinner && <p style={{ color:"red", fontWeight:"bold" }}>当選しました！</p>}
-                <h4>当選者一覧</h4>
-                <ul>{lotteryList.map((u,i) => <li key={i}>{u.name}</li>)}</ul>
+                {lotteryList.length === 0 ? (
+                  <p style={{ color:"lightgray" }}>発表されていません</p>
+                ) : (
+                  <>
+                    {isWinner && <p style={{ color:"red", fontWeight:"bold" }}>当選しました！</p>}
+                    <h4>当選者一覧</h4>
+                    <ul>{lotteryList.map((u,i) => <li key={i}>{u.name}</li>)}</ul>
+                  </>
+                )}
               </div>
             )}
           </div>
