@@ -136,7 +136,7 @@ function App() {
   };
 
   const handleAdminLogout = () => {
-    if (!window.confirm("管理者モードを解除してログイン画面に戻りますか？")) return;
+    if (!window.confirm("ログイン画面に戻りますか？")) return;
     setAdminMode(false); // user情報は保持
   };
 
@@ -290,7 +290,7 @@ function App() {
 
           {/* 管理者モード解除ボタン */}
           <div className="admin-section">
-            <button className="main-btn" onClick={handleAdminLogout}>管理者モードを解除</button>
+            <button className="main-btn" onClick={handleAdminLogout}>管理者画面からログアウト</button>
           </div>
         </div>
       </div>
