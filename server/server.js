@@ -20,6 +20,7 @@ let matches = {}; // deskNum -> [sessionId1, sessionId2]
 let matchEnabled = false;
 let lotteryResults = []; // [{ title: 抽選名, winners: [sessionId,...] }]
 let autoLogoutHours = 12; // 初期値: 12時間
+let currentLotteryTitle = ""; // 現在設定されている抽選名
 
 // --- 卓番号割り当て ---
 function assignDeskNum() {
@@ -211,7 +212,8 @@ io.on("connection", (socket) => {
   });
 
   // --- 管理者：抽選 ---
-  socket.on("admin_draw_lots", ({ title, count = 1, minBattles = 0, minLoginMinutes = 0 }) => {
+  socket.on("admin_draw_lots", ({ count = 1, minBattles = 0, minLoginMinutes = 0 }) => {
+    const title = currentLotteryTitle || "抽選"; // 現在設定されたタイトルを使用
     const now = new Date();
     const candidates = users.filter(u => {
       const loginMinutes = (now - new Date(u.loginTime)) / 60000;
@@ -227,10 +229,9 @@ io.on("connection", (socket) => {
     const shuffled = candidates.sort(() => 0.5 - Math.random());
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
 
-    // 保存形式を変更: {title, winners}
+    // 保存形式: { title, winners }
     lotteryResults.push({ title, winners: winners.map(u => u.sessionId) });
 
-    // --- クライアントに送る ---
     const listForUsers = lotteryResults.map(l => ({
       title: l.title,
       winners: winnerNamesFromSessionIds(l.winners)
@@ -250,8 +251,9 @@ io.on("connection", (socket) => {
   // --- 管理者：抽選名設定 ---
   socket.on("admin_set_lottery_title", ({ title }) => {
     if (typeof title === "string" && title.trim()) {
-      console.log(`抽選名を変更: ${title.trim()}`);
-      socket.emit("admin_set_lottery_title_ok", { title: title.trim() });
+      currentLotteryTitle = title.trim(); // サーバー側に保存
+      console.log(`抽選名を変更: ${currentLotteryTitle}`);
+      socket.emit("admin_set_lottery_title_ok", { title: currentLotteryTitle });
     }
   });
 
