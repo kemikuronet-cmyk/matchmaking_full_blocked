@@ -44,6 +44,13 @@ function App() {
     if (!loginAttempted.current) {
       const savedUser = localStorage.getItem("user");
       const savedAdmin = localStorage.getItem("adminMode");
+
+      // ★ localStorage から当選履歴を復元
+      const savedTitles = localStorage.getItem("lotteryWinnerTitles");
+      if (savedTitles) {
+        setLotteryWinnerTitles(JSON.parse(savedTitles));
+      }
+
       if (savedUser) {
         const u = JSON.parse(savedUser);
         setUser(u);
@@ -63,8 +70,8 @@ function App() {
       setSearching(u.status === "searching");
       setHistory(u.history || []);
       setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
-      setLotteryTitle(""); // ログイン時は個別赤字メッセージは非表示
-      setLotteryWinnerTitles(u.lotteryWinnerTitles || []);
+      setLotteryTitle("");
+      // ここでは localStorage の内容を優先するので u.lotteryWinnerTitles は使わない
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
         setDeskNum(u.deskNum);
@@ -90,6 +97,7 @@ function App() {
       if (reason === "auto") alert("一定時間が経過したため、自動ログアウトされました。");
       localStorage.removeItem("user");
       localStorage.removeItem("adminMode");
+      localStorage.removeItem("lotteryWinnerTitles");
       setLoggedIn(false);
       setAdminMode(false);
       setUser(null);
@@ -107,7 +115,6 @@ function App() {
       setAdminMode(true);
       localStorage.setItem("adminMode", "true");
       socket.emit("admin_get_auto_logout");
-      // 管理者モード開始時に抽選履歴を取得
       socket.emit("admin_get_lottery_history");
     });
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
@@ -115,7 +122,6 @@ function App() {
     socket.on("admin_draw_result", (res) => {
       if (res && res.title) setLotteryTitle(res.title);
       setDrawResult(res?.winners || []);
-      // 抽選履歴更新
       socket.emit("admin_get_lottery_history");
     });
     socket.on("admin_current_auto_logout", ({ hours }) => setAutoLogoutHours(hours));
@@ -142,6 +148,11 @@ function App() {
 
     return () => socket.off();
   }, [user]);
+
+  // ★ 当選履歴が変わるたび localStorage に保存
+  useEffect(() => {
+    localStorage.setItem("lotteryWinnerTitles", JSON.stringify(lotteryWinnerTitles));
+  }, [lotteryWinnerTitles]);
 
   useEffect(() => {
     if (!adminMode) return;
@@ -195,6 +206,7 @@ function App() {
     socket.emit("logout");
     localStorage.removeItem("user");
     localStorage.removeItem("adminMode");
+    localStorage.removeItem("lotteryWinnerTitles");
     setUser(null);
     setLoggedIn(false);
     setSearching(false);
@@ -241,6 +253,13 @@ function App() {
       </div>
     );
   }
+
+  // （中略：管理者画面やバトル画面部分は変更なし）
+
+  // --- ユーザー画面の抽選結果部分 ---
+  // 当選メッセージは localStorage に保存されたものを元に、リロードしても残るようになっている
+
+  // （最後まで変更なし）
 
   if (adminMode) {
     return (
