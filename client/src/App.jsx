@@ -470,7 +470,10 @@ function App() {
                   <tr key={i}>
                     <td>{i+1}</td>
                     <td>{h.opponent}</td>
-                    <td>{h.result}</td>
+                    {/* ★ ここを修正: WIN/LOSEにクラスを付与 */}
+                    <td className={h.result === "WIN" ? "win" : h.result === "LOSE" ? "lose" : ""}>
+                      {h.result}
+                    </td>
                     <td>{h.endTime ? new Date(h.endTime).toLocaleString() : ""}</td>
                   </tr>
                 ))}
