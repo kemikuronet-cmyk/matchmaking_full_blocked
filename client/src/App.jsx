@@ -339,38 +339,41 @@ function App() {
         {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
-        {lotteryList && Array.isArray(lotteryList) && (
-          <div style={{ marginTop:"15px" }}>
-            <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
-              {showLottery ? "抽選結果を閉じる" : "抽選結果"}
-            </button>
-            {showLottery && (
-              <div style={{ marginTop:"10px", color:"yellow" }}>
-                {lotteryList.length === 0 ? (
-                  <p style={{ color:"lightgray" }}>発表されていません</p>
-                ) : (
-                  <>
-                    {lotteryWinner && lotteryTitle && (
-                      <p style={{ color:"red", fontWeight:"bold" }}>
-                        「{lotteryTitle}」に当選しました！
-                      </p>
-                    )}
-                    {lotteryList.map((lottery, idx) => (
-                      <div key={idx} style={{ marginBottom:"10px" }}>
-                        <h4>{lottery?.title || "抽選"} 当選者一覧</h4>
-                        <ul>
-                          {(Array.isArray(lottery?.winners) ? lottery.winners : []).map((w, i) => (
-                            <li key={i}>{w?.name || "未登録"}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
+{lotteryList && Array.isArray(lotteryList) && (
+  <div style={{ marginTop:"15px" }}>
+    <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
+      {showLottery ? "抽選結果を閉じる" : "抽選結果"}
+    </button>
+    {showLottery && (
+      <div style={{ marginTop:"10px", color:"yellow" }}>
+        {lotteryList.length === 0 ? (
+          <p style={{ color:"lightgray" }}>発表されていません</p>
+        ) : (
+          <>
+            {/* 🎯 当選メッセージを一番上に表示 */}
+            {lotteryWinner && (
+              <p style={{ color:"red", fontWeight:"bold" }}>
+                「{lotteryTitle || "抽選"}」に当選しました！
+              </p>
             )}
-          </div>
+
+            {lotteryList.map((lottery, idx) => (
+              <div key={idx} style={{ marginBottom:"10px" }}>
+                <h4>{lottery?.title || "抽選"} 当選者一覧</h4>
+                <ul>
+                  {(Array.isArray(lottery?.winners) ? lottery.winners : []).map((w, i) => (
+                    <li key={i}>{w?.name || "未登録"}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </>
         )}
+      </div>
+    )}
+  </div>
+)}
+
 
         <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
           <div className="history-list">
