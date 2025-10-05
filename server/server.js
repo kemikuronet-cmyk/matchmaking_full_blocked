@@ -228,10 +228,7 @@ io.on("connection", (socket) => {
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
 
     // 保存形式を変更: {title, winners}
-    lotteryResults.push({
-      title,
-      winners: winners.map(u => u.sessionId)
-    });
+    lotteryResults[title] = winners.map(u => u.sessionId);
 
     // --- クライアントに送る ---
     const listForUsers = lotteryResults.map(l => ({
