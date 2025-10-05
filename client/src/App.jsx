@@ -37,7 +37,7 @@ function App() {
   const [autoLogoutHours, setAutoLogoutHours] = useState(12);
 
   const [lotteryHistory, setLotteryHistory] = useState([]);
-  const [activeMatches, setActiveMatches] = useState([]); // ★ 追加: 対戦中の部屋一覧
+  const [activeMatches, setActiveMatches] = useState([]); // 対戦中の部屋一覧
 
   const loginAttempted = useRef(false);
 
@@ -112,7 +112,7 @@ function App() {
       localStorage.setItem("adminMode", "true");
       socket.emit("admin_get_auto_logout");
       socket.emit("admin_get_lottery_history");
-      socket.emit("admin_get_active_matches"); // ★ 追加
+      socket.emit("admin_get_active_matches");
     });
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
     socket.on("admin_user_list", (list) => setUsersList(list));
@@ -142,7 +142,7 @@ function App() {
 
     socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
 
-    // ★ 追加: 対戦中の部屋一覧受信
+    // 対戦中の部屋一覧受信
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
     return () => socket.off();
@@ -157,7 +157,7 @@ function App() {
     const interval = setInterval(() => {
       socket.emit("admin_view_users");
       socket.emit("admin_get_lottery_history");
-      socket.emit("admin_get_active_matches"); // ★ 追加
+      socket.emit("admin_get_active_matches");
     }, 3000);
     return () => clearInterval(interval);
   }, [adminMode]);
@@ -234,6 +234,16 @@ function App() {
   const handleLogoutUser = (userId, userName) => {
     if (!window.confirm(`${userName} をログアウトさせますか？`)) return;
     socket.emit("admin_logout_user", { userId });
+  };
+
+  // ★ 管理者専用: 勝利報告ボタン
+  const handleAdminReportWin = (winnerSessionId, deskNum) => {
+    if (!window.confirm("この部屋の勝者を登録しますか？")) return;
+    socket.emit("admin_report_win", { winnerSessionId, deskNum });
+  };
+  const handleAdminReportBothLose = (deskNum) => {
+    if (!window.confirm("この部屋の両者を敗北として登録しますか？")) return;
+    socket.emit("admin_report_both_lose", { deskNum });
   };
 
   // --- レンダリング ---
@@ -355,7 +365,7 @@ function App() {
             <button className="main-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
           </div>
 
-          {/* ★ 追加: 対戦中の部屋一覧 */}
+          {/* 対戦中の部屋一覧（勝利報告ボタン追加） */}
           <div className="admin-section">
             <h3>対戦中の部屋一覧</h3>
             {activeMatches.length === 0 ? (
@@ -363,7 +373,7 @@ function App() {
             ) : (
               <table style={{ color: "white", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr><th>卓番号</th><th>プレイヤー1</th><th>プレイヤー2</th></tr>
+                  <tr><th>卓番号</th><th>プレイヤー1</th><th>プレイヤー2</th><th>操作</th></tr>
                 </thead>
                 <tbody>
                   {activeMatches.map((m, i) => (
@@ -371,6 +381,11 @@ function App() {
                       <td>{m.deskNum}</td>
                       <td>{m.player1}</td>
                       <td>{m.player2}</td>
+                      <td>
+                        <button className="main-btn" onClick={() => handleAdminReportWin(m.player1SessionId, m.deskNum)}>プレイヤー1勝利</button>
+                        <button className="main-btn" onClick={() => handleAdminReportWin(m.player2SessionId, m.deskNum)}>プレイヤー2勝利</button>
+                        <button className="main-btn" onClick={() => handleAdminReportBothLose(m.deskNum)}>両者敗北</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
