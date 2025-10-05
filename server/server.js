@@ -203,42 +203,6 @@ io.on("connection", (socket) => {
     io.to(opponent.id).emit("return_to_menu_battle");
   });
 
-  // --- 管理者：対戦部屋一覧取得 ---
-  socket.on("admin_room_list", () => {
-    const roomList = Object.entries(matches).map(([deskNum, sessionIds]) => {
-      const players = sessionIds.map(sid => {
-        const u = users.find(x => x.sessionId === sid);
-        return u ? { id: u.id, name: u.name } : null;
-      }).filter(Boolean);
-      return { deskNum: Number(deskNum), players };
-    });
-    socket.emit("admin_room_list", roomList);
-  });
-
-  // --- 管理者：勝利報告 ---
-  socket.on("admin_report_win", ({ deskNum, winnerId }) => {
-    const sessionIds = matches[deskNum];
-    if (!sessionIds) return;
-
-    const user = users.find(u => u.id === winnerId);
-    const opponent = users.find(u => sessionIds.includes(u.sessionId) && u.id !== winnerId);
-    if (!user || !opponent) return;
-
-    const now = new Date();
-    user.history.push({ opponent: opponent.name, result: "WIN", startTime: now, endTime: now });
-    opponent.history.push({ opponent: user.name, result: "LOSE", startTime: now, endTime: now });
-
-    // 部屋リセット
-    user.status = "idle"; user.opponentSessionId = null; user.deskNum = null;
-    opponent.status = "idle"; opponent.opponentSessionId = null; opponent.deskNum = null;
-    delete matches[deskNum];
-
-    io.to(user.id).emit("history", user.history);
-    io.to(opponent.id).emit("history", opponent.history);
-    io.to(user.id).emit("return_to_menu_battle");
-    io.to(opponent.id).emit("return_to_menu_battle");
-  });
-
   // --- 管理者：ユーザー一覧 ---
   socket.on("admin_view_users", () => {
     const list = users.map(u => ({
@@ -247,9 +211,19 @@ io.on("connection", (socket) => {
     socket.emit("admin_user_list", list);
   });
 
+  // --- 管理者：対戦中の部屋一覧取得（追加） ---
+  socket.on("admin_get_active_matches", () => {
+    const list = Object.entries(matches).map(([deskNum, sessionIds]) => {
+      const player1 = users.find(u => u.sessionId === sessionIds[0])?.name || "不明";
+      const player2 = users.find(u => u.sessionId === sessionIds[1])?.name || "不明";
+      return { deskNum, player1, player2 };
+    });
+    socket.emit("admin_active_matches", list);
+  });
+
   // --- 管理者：抽選 ---
   socket.on("admin_draw_lots", ({ count = 1, minBattles = 0, minLoginMinutes = 0 }) => {
-    const title = currentLotteryTitle || "抽選"; // 現在設定されたタイトルを使用
+    const title = currentLotteryTitle || "抽選";
     const now = new Date();
     const candidates = users.filter(u => {
       const loginMinutes = (now - new Date(u.loginTime)) / 60000;
@@ -286,7 +260,7 @@ io.on("connection", (socket) => {
   // --- 管理者：抽選名設定 ---
   socket.on("admin_set_lottery_title", ({ title }) => {
     if (typeof title === "string" && title.trim()) {
-      currentLotteryTitle = title.trim(); // サーバー側に保存
+      currentLotteryTitle = title.trim();
       console.log(`抽選名を変更: ${currentLotteryTitle}`);
       socket.emit("admin_set_lottery_title_ok", { title: currentLotteryTitle });
     }
