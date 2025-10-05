@@ -257,6 +257,15 @@ io.on("connection", (socket) => {
     }
   });
 
+  // --- 管理者：抽選履歴取得 ---
+  socket.on("admin_get_lottery_history", () => {
+    const listForAdmin = lotteryResults.map(l => ({
+      title: l.title,
+      winners: winnerNamesFromSessionIds(l.winners)
+    }));
+    socket.emit("admin_lottery_history", listForAdmin);
+  });
+
   // --- 管理者：全ユーザー強制ログアウト ---
   socket.on("admin_logout_all", () => {
     users.forEach(u => io.to(u.id).emit("force_logout", { reason: "manual" }));
