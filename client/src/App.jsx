@@ -387,7 +387,7 @@ function App() {
                     {/* 🎯 当選メッセージを当選タイトルごとに最新順で表示 */}
                     {lotteryWinnerTitles.slice().reverse().map((title, idx) => (
                       <p key={idx} style={{ color:"red", fontWeight:"bold" }}>
-                        「{title}」に当選しました！
+                        「{title}」が当選しました！
                       </p>
                     ))}
 
