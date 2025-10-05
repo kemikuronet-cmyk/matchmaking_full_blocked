@@ -31,7 +31,7 @@ function App() {
   const [minLoginHours, setMinLoginHours] = useState(0);
   const [drawResult, setDrawResult] = useState([]);
 
-  const [lotteryWinner, setLotteryWinner] = useState(false);
+  const [lotteryWinnerTitles, setLotteryWinnerTitles] = useState([]); // ユーザーが当選したタイトル一覧
   const [showLottery, setShowLottery] = useState(false);
 
   const [autoLogoutHours, setAutoLogoutHours] = useState(12);
@@ -61,9 +61,8 @@ function App() {
       setSearching(u.status === "searching");
       setHistory(u.history || []);
       setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
-      setLotteryTitle(u.lotteryTitle || "");
-      setLotteryWinner(false);
-      if ((u.lotteryList || []).length > 0) setShowLottery(false);
+      setLotteryTitle(""); // ログイン時は個別赤字メッセージは非表示
+      setLotteryWinnerTitles(u.lotteryWinnerTitles || []);
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
         setDeskNum(u.deskNum);
@@ -95,7 +94,7 @@ function App() {
       setSearching(false);
       setOpponent(null);
       setDeskNum(null);
-      setLotteryWinner(false);
+      setLotteryWinnerTitles([]);
       setName("");
     });
 
@@ -119,21 +118,18 @@ function App() {
       alert(`自動ログアウト時間を ${hours} 時間に設定しました`);
     });
 
-    // --- 抽選更新イベント（常に最新） ---
+    // --- 抽選更新イベント ---
     socket.on("lottery_winner", ({ title }) => {
-      setLotteryWinner(true);
-      setLotteryTitle(title || "");
+      setLotteryWinnerTitles(prev => {
+        if (!prev.includes(title)) return [...prev, title];
+        return prev;
+      });
     });
-    socket.on("update_lottery_list", ({ list, title }) => {
+
+    socket.on("update_lottery_list", ({ list }) => {
       if (!list || !Array.isArray(list)) return;
       setLotteryList(list);
-      setLotteryTitle(title || "");
       setShowLottery(true);
-      // 自分がどの抽選に当たったか確認
-      const isWinner = list.some(item =>
-        Array.isArray(item.winners) && item.winners.some(w => w?.name === user?.name)
-      );
-      setLotteryWinner(isWinner);
     });
 
     return () => socket.off();
@@ -195,7 +191,7 @@ function App() {
     setSearching(false);
     setOpponent(null);
     setDeskNum(null);
-    setLotteryWinner(false);
+    setLotteryWinnerTitles([]);
     setName("");
   };
 
@@ -242,14 +238,14 @@ function App() {
       <div className="app">
         <div className="header">管理者画面</div>
         <div className="admin-screen">
-          {/* --- マッチング --- */}
+          {/* マッチング */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleToggleMatch}>
               {matchEnabled ? "マッチング中" : "マッチング開始"}
             </button>
           </div>
 
-          {/* --- 抽選 --- */}
+          {/* 抽選 */}
           <div className="admin-section">
             <h3>抽選</h3>
             <label>
@@ -266,7 +262,7 @@ function App() {
             </ul>
           </div>
 
-          {/* --- 自動ログアウト設定 --- */}
+          {/* 自動ログアウト */}
           <div className="admin-section">
             <h3>自動ログアウト設定</h3>
             <label>
@@ -276,7 +272,7 @@ function App() {
             <button className="main-btn" onClick={handleUpdateAutoLogout}>更新</button>
           </div>
 
-          {/* --- ユーザー一覧 --- */}
+          {/* ユーザー一覧 */}
           <div className="admin-section">
             <h3>ログイン中のユーザー</h3>
             <table style={{ color: "white", borderCollapse: "collapse" }}>
@@ -309,7 +305,7 @@ function App() {
             <button className="main-btn" onClick={handleAdminLogoutAll}>全ユーザーをログアウト</button>
           </div>
 
-          {/* --- 管理者モード解除 --- */}
+          {/* 管理者モード解除 */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleAdminLogout}>管理者画面からログアウト</button>
           </div>
@@ -339,41 +335,40 @@ function App() {
         {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
         <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
-{lotteryList && Array.isArray(lotteryList) && (
-  <div style={{ marginTop:"15px" }}>
-    <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
-      {showLottery ? "抽選結果を閉じる" : "抽選結果"}
-    </button>
-    {showLottery && (
-      <div style={{ marginTop:"10px", color:"yellow" }}>
-        {lotteryList.length === 0 ? (
-          <p style={{ color:"lightgray" }}>発表されていません</p>
-        ) : (
-          <>
-            {/* 🎯 当選メッセージを一番上に表示 */}
-            {lotteryWinner && (
-              <p style={{ color:"red", fontWeight:"bold" }}>
-                「{lotteryTitle || "抽選"}」に当選しました！
-              </p>
-            )}
+        {lotteryList && Array.isArray(lotteryList) && (
+          <div style={{ marginTop:"15px" }}>
+            <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
+              {showLottery ? "抽選結果を閉じる" : "抽選結果"}
+            </button>
+            {showLottery && (
+              <div style={{ marginTop:"10px", color:"yellow" }}>
+                {lotteryList.length === 0 ? (
+                  <p style={{ color:"lightgray" }}>発表されていません</p>
+                ) : (
+                  <>
+                    {/* 🎯 当選メッセージを当選タイトルごとに表示 */}
+                    {lotteryWinnerTitles.map((title, idx) => (
+                      <p key={idx} style={{ color:"red", fontWeight:"bold" }}>
+                        「{title}」に当選しました！
+                      </p>
+                    ))}
 
-            {lotteryList.map((lottery, idx) => (
-              <div key={idx} style={{ marginBottom:"10px" }}>
-                <h4>{lottery?.title || "抽選"} 当選者一覧</h4>
-                <ul>
-                  {(Array.isArray(lottery?.winners) ? lottery.winners : []).map((w, i) => (
-                    <li key={i}>{w?.name || "未登録"}</li>
-                  ))}
-                </ul>
+                    {lotteryList.map((lottery, idx) => (
+                      <div key={idx} style={{ marginBottom:"10px" }}>
+                        <h4>{lottery?.title || "抽選"} 当選者一覧</h4>
+                        <ul>
+                          {(Array.isArray(lottery?.winners) ? lottery.winners : []).map((w, i) => (
+                            <li key={i}>{w?.name || "未登録"}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
-            ))}
-          </>
+            )}
+          </div>
         )}
-      </div>
-    )}
-  </div>
-)}
-
 
         <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
           <div className="history-list">
