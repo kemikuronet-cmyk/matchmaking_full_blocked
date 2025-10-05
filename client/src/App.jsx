@@ -357,9 +357,9 @@ function App() {
                     )}
                     {lotteryList.map((lottery, idx) => (
                       <div key={idx} style={{ marginBottom:"10px" }}>
-                        <h4>{lottery?.title || ""} 当選者一覧</h4>
+                        <h4>{lottery?.title || "抽選"} 当選者一覧</h4>
                         <ul>
-                          {(lottery?.winners || []).map((w, i) => (
+                          {(Array.isArray(lottery?.winners) ? lottery.winners : []).map((w, i) => (
                             <li key={i}>{w?.name || "未登録"}</li>
                           ))}
                         </ul>
