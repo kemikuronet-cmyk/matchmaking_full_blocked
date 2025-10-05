@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 4000;
 let users = [];
 let matches = {}; // deskNum -> [sessionId1, sessionId2]
 let matchEnabled = false;
-let lotteryResults = {}; // 抽選名 -> [sessionId,...]
+let lotteryResults = []; // [{ title: 抽選名, winners: [sessionId,...] }]
 let autoLogoutHours = 12; // 初期値: 12時間
 
 // --- 卓番号割り当て ---
@@ -87,14 +87,13 @@ io.on("connection", (socket) => {
       ? users.find(u => u.sessionId === user.opponentSessionId)
       : null;
 
-    const wonTitles = Object.entries(lotteryResults)
-      .filter(([_, sids]) => sids.includes(user.sessionId))
-      .map(([title, _]) => title);
+    const wonTitles = lotteryResults
+      .filter(l => l.winners.includes(user.sessionId))
+      .map(l => l.title);
 
-    // --- 修正: 抽選リストをタイトルごとにまとめて送る ---
-    const currentLotteryList = Object.entries(lotteryResults).map(([title, sids]) => ({
-      title,
-      winners: winnerNamesFromSessionIds(sids)
+    const currentLotteryList = lotteryResults.map(l => ({
+      title: l.title,
+      winners: winnerNamesFromSessionIds(l.winners)
     }));
 
     socket.emit("login_ok", {
@@ -217,25 +216,32 @@ io.on("connection", (socket) => {
     const candidates = users.filter(u => {
       const loginMinutes = (now - new Date(u.loginTime)) / 60000;
       const battles = u.history?.length || 0;
-      const alreadyWon = Object.values(lotteryResults).some(arr => arr.includes(u.sessionId));
+      const alreadyWon = lotteryResults.some(l => l.winners.includes(u.sessionId));
       return battles >= minBattles && loginMinutes >= minLoginMinutes && !alreadyWon;
     });
 
-    if (candidates.length === 0) return socket.emit("admin_draw_result", { winners: [], title });
+    if (candidates.length === 0) {
+      return socket.emit("admin_draw_result", { winners: [], title });
+    }
 
     const shuffled = candidates.sort(() => 0.5 - Math.random());
     const winners = shuffled.slice(0, Math.min(count, candidates.length));
-    lotteryResults[title] = winners.map(u => u.sessionId);
 
-    // --- 修正: 全抽選結果を構造化して送る ---
-    const listForUsers = Object.entries(lotteryResults).map(([t, sids]) => ({
-      title: t,
-      winners: winnerNamesFromSessionIds(sids)
+    // 保存形式を変更: {title, winners}
+    lotteryResults.push({
+      title,
+      winners: winners.map(u => u.sessionId)
+    });
+
+    // --- クライアントに送る ---
+    const listForUsers = lotteryResults.map(l => ({
+      title: l.title,
+      winners: winnerNamesFromSessionIds(l.winners)
     }));
 
     users.forEach(u => {
       io.to(u.id).emit("update_lottery_list", { list: listForUsers, title });
-      if (lotteryResults[title].includes(u.sessionId)) {
+      if (winners.some(w => w.sessionId === u.sessionId)) {
         io.to(u.id).emit("lottery_winner", { title });
       }
     });
@@ -257,7 +263,7 @@ io.on("connection", (socket) => {
     users.forEach(u => io.to(u.id).emit("force_logout", { reason: "manual" }));
     users = [];
     matches = {};
-    lotteryResults = {};
+    lotteryResults = [];
   });
 
   // --- 管理者による特定ユーザー強制ログアウト ---
