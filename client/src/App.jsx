@@ -384,14 +384,15 @@ function App() {
                   <p style={{ color:"lightgray" }}>発表されていません</p>
                 ) : (
                   <>
-                    {/* 🎯 当選メッセージを当選タイトルごとに表示 */}
-                    {lotteryWinnerTitles.map((title, idx) => (
+                    {/* 🎯 当選メッセージを当選タイトルごとに最新順で表示 */}
+                    {lotteryWinnerTitles.slice().reverse().map((title, idx) => (
                       <p key={idx} style={{ color:"red", fontWeight:"bold" }}>
                         「{title}」に当選しました！
                       </p>
                     ))}
 
-                    {lotteryList.map((lottery, idx) => (
+                    {/* 抽選リストも最新順で表示 */}
+                    {lotteryList.slice().reverse().map((lottery, idx) => (
                       <div key={idx} style={{ marginBottom:"10px" }}>
                         <h4>{lottery?.title || "抽選"} 当選者一覧</h4>
                         <ul>
