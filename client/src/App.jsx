@@ -36,6 +36,8 @@ function App() {
 
   const [autoLogoutHours, setAutoLogoutHours] = useState(12);
 
+  const [lotteryHistory, setLotteryHistory] = useState([]); // 管理者用抽選履歴
+
   const loginAttempted = useRef(false);
 
   useEffect(() => {
@@ -105,12 +107,16 @@ function App() {
       setAdminMode(true);
       localStorage.setItem("adminMode", "true");
       socket.emit("admin_get_auto_logout");
+      // 管理者モード開始時に抽選履歴を取得
+      socket.emit("admin_get_lottery_history");
     });
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => {
       if (res && res.title) setLotteryTitle(res.title);
       setDrawResult(res?.winners || []);
+      // 抽選履歴更新
+      socket.emit("admin_get_lottery_history");
     });
     socket.on("admin_current_auto_logout", ({ hours }) => setAutoLogoutHours(hours));
     socket.on("admin_set_auto_logout_ok", ({ hours }) => {
@@ -132,6 +138,8 @@ function App() {
       setShowLottery(true);
     });
 
+    socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
+
     return () => socket.off();
   }, [user]);
 
@@ -139,6 +147,7 @@ function App() {
     if (!adminMode) return;
     const interval = setInterval(() => {
       socket.emit("admin_view_users");
+      socket.emit("admin_get_lottery_history");
     }, 3000);
     return () => clearInterval(interval);
   }, [adminMode]);
@@ -260,6 +269,35 @@ function App() {
             <ul>
               {Array.isArray(drawResult) && drawResult.map((u,i) => <li key={i}>{u.name}</li>)}
             </ul>
+          </div>
+
+          {/* 抽選履歴 */}
+          <div className="admin-section">
+            <h3>抽選履歴</h3>
+            {lotteryHistory.length === 0 ? (
+              <p style={{ color:"lightgray" }}>まだ抽選履歴はありません</p>
+            ) : (
+              <table style={{ color: "white", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th>抽選名</th>
+                    <th>当選者</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lotteryHistory.map((l, idx) => (
+                    <tr key={idx}>
+                      <td>{l.title}</td>
+                      <td>
+                        {(Array.isArray(l.winners) ? l.winners : []).map((w, i) => (
+                          <span key={i}>{w.name}{i < l.winners.length - 1 ? ", " : ""}</span>
+                        ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           {/* 自動ログアウト */}
