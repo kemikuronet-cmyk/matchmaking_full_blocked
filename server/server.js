@@ -208,15 +208,19 @@ io.on("connection", (socket) => {
     const list = Object.entries(matches).map(([deskNum, sessionIds]) => {
       const player1 = users.find(u => u.sessionId === sessionIds[0])?.name || "不明";
       const player2 = users.find(u => u.sessionId === sessionIds[1])?.name || "不明";
-      return { deskNum, player1, player2, sessionIds };
+      return { deskNum, player1, player2, player1SessionId: sessionIds[0], player2SessionId: sessionIds[1] };
     });
     socket.emit("admin_active_matches", list);
   });
 
-  // --- 管理者：対戦結果を操作 ---
+  // --- 管理者：対戦結果操作 ---
   socket.on("admin_report_win", ({ winnerSessionId, deskNum }) => {
-    const loserSessionId = matches[deskNum]?.find(sid => sid !== winnerSessionId);
+    const match = matches[deskNum];
+    if (!match || match.length !== 2) return;
+
+    const loserSessionId = match.find(sid => sid !== winnerSessionId);
     if (!loserSessionId) return;
+
     const winner = users.find(u => u.sessionId === winnerSessionId);
     const loser = users.find(u => u.sessionId === loserSessionId);
     if (!winner || !loser) return;
@@ -228,21 +232,29 @@ io.on("connection", (socket) => {
     winner.status = "idle"; winner.opponentSessionId = null; winner.deskNum = null;
     loser.status = "idle"; loser.opponentSessionId = null; loser.deskNum = null;
 
-    if (matches[deskNum]) delete matches[deskNum];
+    delete matches[deskNum];
 
     io.to(winner.id).emit("history", winner.history);
     io.to(loser.id).emit("history", loser.history);
 
     io.to(winner.id).emit("return_to_menu_battle");
     io.to(loser.id).emit("return_to_menu_battle");
+
+    io.emit("admin_active_matches", Object.entries(matches).map(([dn, sids]) => ({
+      deskNum: dn,
+      player1: users.find(u => u.sessionId === sids[0])?.name || "不明",
+      player2: users.find(u => u.sessionId === sids[1])?.name || "不明",
+      player1SessionId: sids[0],
+      player2SessionId: sids[1]
+    })));
   });
 
   socket.on("admin_report_both_lose", ({ deskNum }) => {
-    const sessionIds = matches[deskNum];
-    if (!sessionIds || sessionIds.length !== 2) return;
+    const match = matches[deskNum];
+    if (!match || match.length !== 2) return;
 
-    const player1 = users.find(u => u.sessionId === sessionIds[0]);
-    const player2 = users.find(u => u.sessionId === sessionIds[1]);
+    const player1 = users.find(u => u.sessionId === match[0]);
+    const player2 = users.find(u => u.sessionId === match[1]);
     if (!player1 || !player2) return;
 
     const now = new Date();
@@ -252,13 +264,21 @@ io.on("connection", (socket) => {
     player1.status = "idle"; player1.opponentSessionId = null; player1.deskNum = null;
     player2.status = "idle"; player2.opponentSessionId = null; player2.deskNum = null;
 
-    if (matches[deskNum]) delete matches[deskNum];
+    delete matches[deskNum];
 
     io.to(player1.id).emit("history", player1.history);
     io.to(player2.id).emit("history", player2.history);
 
     io.to(player1.id).emit("return_to_menu_battle");
     io.to(player2.id).emit("return_to_menu_battle");
+
+    io.emit("admin_active_matches", Object.entries(matches).map(([dn, sids]) => ({
+      deskNum: dn,
+      player1: users.find(u => u.sessionId === sids[0])?.name || "不明",
+      player2: users.find(u => u.sessionId === sids[1])?.name || "不明",
+      player1SessionId: sids[0],
+      player2SessionId: sids[1]
+    })));
   });
 
   // --- 以下、管理者用ユーザー一覧・抽選・ログアウト処理（変更なし） ---
