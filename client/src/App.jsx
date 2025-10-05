@@ -25,6 +25,7 @@ function App() {
   const [adminPassword, setAdminPassword] = useState("");
   const [usersList, setUsersList] = useState([]);
   const [matchEnabled, setMatchEnabled] = useState(false);
+  const [adminRooms, setAdminRooms] = useState([]); // ← 追加
 
   const [drawCount, setDrawCount] = useState(1);
   const [minMatches, setMinMatches] = useState(0);
@@ -45,7 +46,6 @@ function App() {
       const savedUser = localStorage.getItem("user");
       const savedAdmin = localStorage.getItem("adminMode");
 
-      // ★ localStorage から当選履歴を復元
       const savedTitles = localStorage.getItem("lotteryWinnerTitles");
       if (savedTitles) {
         setLotteryWinnerTitles(JSON.parse(savedTitles));
@@ -71,7 +71,6 @@ function App() {
       setHistory(u.history || []);
       setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
       setLotteryTitle("");
-      // ここでは localStorage の内容を優先するので u.lotteryWinnerTitles は使わない
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
         setDeskNum(u.deskNum);
@@ -146,10 +145,12 @@ function App() {
 
     socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
 
+    // --- 新規：管理者用対戦部屋リスト ---
+    socket.on("admin_room_list", (rooms) => setAdminRooms(rooms));
+
     return () => socket.off();
   }, [user]);
 
-  // ★ 当選履歴が変わるたび localStorage に保存
   useEffect(() => {
     localStorage.setItem("lotteryWinnerTitles", JSON.stringify(lotteryWinnerTitles));
   }, [lotteryWinnerTitles]);
@@ -159,6 +160,7 @@ function App() {
     const interval = setInterval(() => {
       socket.emit("admin_view_users");
       socket.emit("admin_get_lottery_history");
+      socket.emit("admin_get_rooms"); // ← 追加：アクティブ部屋取得
     }, 3000);
     return () => clearInterval(interval);
   }, [adminMode]);
@@ -199,6 +201,12 @@ function App() {
     setSearching(false);
     socket.emit("request_history");
     socket.emit("admin_view_users");
+  };
+
+  // --- 新規：管理者用勝利報告 ---
+  const handleAdminWinReport = (roomId, winner) => {
+    if (!window.confirm(`${winner.name} の勝利として登録しますか？`)) return;
+    socket.emit("admin_report_win", { roomId, winnerId: winner.id });
   };
 
   const handleLogout = () => {
@@ -254,13 +262,6 @@ function App() {
     );
   }
 
-  // （中略：管理者画面やバトル画面部分は変更なし）
-
-  // --- ユーザー画面の抽選結果部分 ---
-  // 当選メッセージは localStorage に保存されたものを元に、リロードしても残るようになっている
-
-  // （最後まで変更なし）
-
   if (adminMode) {
     return (
       <div className="app">
@@ -273,6 +274,36 @@ function App() {
             </button>
           </div>
 
+          {/* 対戦部屋一覧（追加） */}
+          <div className="admin-section">
+            <h3>対戦中の部屋</h3>
+            {adminRooms.length === 0 ? (
+              <p style={{ color:"lightgray" }}>現在対戦中の部屋はありません</p>
+            ) : (
+              <table style={{ color: "white", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th>卓番号</th><th>プレイヤー1</th><th>プレイヤー2</th><th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminRooms.map((room) => (
+                    <tr key={room.deskNum}>
+                      <td>{room.deskNum}</td>
+                      <td>{room.player1?.name || "未登録"}</td>
+                      <td>{room.player2?.name || "未登録"}</td>
+                      <td>
+                        {room.player1 && <button className="main-btn" onClick={() => handleAdminWinReport(room.deskNum, room.player1)}>P1勝利</button>}
+                        {room.player2 && <button className="main-btn" onClick={() => handleAdminWinReport(room.deskNum, room.player2)}>P2勝利</button>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* 以下は既存の抽選・履歴・自動ログアウト・ユーザー一覧・管理者ログアウト部分 */}
           {/* 抽選 */}
           <div className="admin-section">
             <h3>抽選</h3>
@@ -403,14 +434,12 @@ function App() {
                   <p style={{ color:"lightgray" }}>発表されていません</p>
                 ) : (
                   <>
-                    {/* 🎯 当選メッセージを当選タイトルごとに最新順で表示 */}
                     {lotteryWinnerTitles.slice().reverse().map((title, idx) => (
                       <p key={idx} style={{ color:"red", fontWeight:"bold" }}>
                         「{title}」が当選しました！
                       </p>
                     ))}
 
-                    {/* 抽選リストも最新順で表示 */}
                     {lotteryList.slice().reverse().map((lottery, idx) => (
                       <div key={idx} style={{ marginBottom:"10px" }}>
                         <h4>{lottery?.title || "抽選"} 当選者一覧</h4>
