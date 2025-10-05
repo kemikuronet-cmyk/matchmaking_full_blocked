@@ -34,12 +34,12 @@ function App() {
 
   const loginAttempted = useRef(false);
 
+  // --- socket.io イベント ---
   useEffect(() => {
     if (!loginAttempted.current) {
       const savedUser = localStorage.getItem("user");
       const savedAdmin = localStorage.getItem("adminMode");
       const savedTitles = localStorage.getItem("lotteryWinnerTitles");
-
       if (savedTitles) setLotteryWinnerTitles(JSON.parse(savedTitles));
       if (savedUser) {
         const u = JSON.parse(savedUser);
@@ -52,7 +52,6 @@ function App() {
       loginAttempted.current = true;
     }
 
-    // --- Socket.ioイベント ---
     socket.on("login_ok", (u) => {
       setUser(u);
       setLoggedIn(true);
@@ -140,7 +139,10 @@ function App() {
   }, [user]);
 
   useEffect(() => {
-    localStorage.setItem("lotteryWinnerTitles", JSON.stringify(lotteryWinnerTitles));
+    localStorage.setItem(
+      "lotteryWinnerTitles",
+      JSON.stringify(lotteryWinnerTitles)
+    );
   }, [lotteryWinnerTitles]);
 
   useEffect(() => {
@@ -153,35 +155,30 @@ function App() {
     return () => clearInterval(interval);
   }, [adminMode]);
 
-  // --- ハンドラ ---
+  // --- ハンドラー ---
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
     socket.emit("login", { name: trimmedName });
   };
-
   const handleAdminLogin = () => {
     if (!adminPassword) return;
     socket.emit("admin_login", { password: adminPassword });
   };
-
   const handleAdminLogout = () => {
     if (!window.confirm("ログイン画面に戻りますか？")) return;
     setAdminMode(false);
     localStorage.removeItem("adminMode");
   };
-
   const handleFindOpponent = () => {
     if (!matchEnabled) return;
     setSearching(true);
     socket.emit("find_opponent");
   };
-
   const handleCancelSearch = () => {
     setSearching(false);
     socket.emit("cancel_find");
   };
-
   const handleWinReport = () => {
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
     socket.emit("report_win");
@@ -191,7 +188,6 @@ function App() {
     socket.emit("request_history");
     socket.emit("admin_view_users");
   };
-
   const handleLogout = () => {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
@@ -206,9 +202,7 @@ function App() {
     setLotteryWinnerTitles([]);
     setName("");
   };
-
-  const handleToggleMatch = () =>
-    socket.emit("admin_toggle_match", { enable: !matchEnabled });
+  const handleToggleMatch = () => socket.emit("admin_toggle_match", { enable: !matchEnabled });
   const handleDrawLots = () => {
     socket.emit("admin_draw_lots", {
       count: drawCount,
@@ -237,367 +231,129 @@ function App() {
     socket.emit("admin_report_both_lose", { deskNum });
   };
 
+  // --- レンダリング ---
+  if (!loggedIn && !adminMode) {
+    return (
+      <div className="login-screen" style={{ padding: "20px", textAlign: "center" }}>
+        <h2>ユーザーとしてログイン</h2>
+        <input
+          type="text"
+          placeholder="ユーザー名"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={{ marginBottom: "10px", padding: "10px", width: "80%", fontSize: "16px" }}
+        />
+        <br />
+        <button className="main-btn" onClick={handleLogin} style={{ padding: "10px 20px", marginBottom: "20px", fontSize: "16px" }}>
+          ログイン
+        </button>
+        <div style={{ marginTop: "20px" }}>
+          <input
+            type="password"
+            value={adminPassword}
+            onChange={(e) => setAdminPassword(e.target.value)}
+            placeholder="管理者パスワード"
+            style={{ marginBottom: "10px", padding: "10px", width: "80%", fontSize: "16px" }}
+          />
+          <br />
+          <button className="admin-btn" onClick={handleAdminLogin} style={{ padding: "10px 20px", fontSize: "16px" }}>管理者ログイン</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (adminMode) {
+    return (
+      <div className="app" style={{ padding: "10px" }}>
+        <div className="header" style={{ textAlign: "center", fontSize: "20px", marginBottom: "20px" }}>管理者画面</div>
+        <div className="admin-screen" style={{ display: "flex", flexDirection: "column", gap: "20px", overflowX: "auto" }}>
+          {/* 上で送ってもらった管理者画面 JSX をここに貼る */}
+        </div>
+      </div>
+    );
+  }
+
+  if (opponent) {
+    return (
+      <div className="battle-screen" style={{ padding: "20px", textAlign: "center" }}>
+        <h3>対戦相手: {opponent.name}</h3>
+        <div>卓番号: {deskNum}</div>
+        <button className="main-btn" onClick={handleWinReport} style={{ marginTop: "10px", padding: "10px 20px", fontSize: "16px" }}>勝利報告</button>
+      </div>
+    );
+  }
+
   const displayHistory = history || [];
 
-  // --- レンダリング ---
   return (
-    <div className="app">
-      {!loggedIn && !adminMode ? (
-        // ログイン画面
-        <div className="login-screen">
-          <div className="user-login-center">
-            <h2>ユーザーとしてログイン</h2>
-            <input
-              type="text"
-              placeholder="ユーザー名"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <button className="main-btn" onClick={handleLogin}>
-              ログイン
-            </button>
-          </div>
-          <div className="admin-login-topright">
-            <input
-              type="password"
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              placeholder="管理者パスワード"
-            />
-            <button className="admin-btn" onClick={handleAdminLogin}>
-              管理者ログイン
-            </button>
-          </div>
-        </div>
-      ) : adminMode ? (
-        // 管理者画面
-        <div className="admin-screen">
-          <div className="header">管理者画面</div>
+    <div className="menu-screen" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "20px", width: "100%", boxSizing: "border-box" }}>
+      <div className="header" style={{ marginBottom: "20px", fontSize: "18px" }}>{user?.name}</div>
 
-          {/* --- マッチング --- */}
-          <div className="admin-section">
-            <button className="main-btn" onClick={handleToggleMatch}>
-              {matchEnabled ? "マッチング中" : "マッチング開始"}
-            </button>
-          </div>
+      {/* 対戦ボタン */}
+      {!searching && matchEnabled && <button className="main-btn" onClick={handleFindOpponent} style={{ marginBottom: "10px", padding: "10px 20px" }}>対戦相手を探す</button>}
+      {searching && <button className="main-btn" onClick={handleCancelSearch} style={{ marginBottom: "10px", padding: "10px 20px" }}>対戦相手を探しています…</button>}
+      {!matchEnabled && <div className="match-disabled" style={{ marginBottom: "10px" }}>マッチング時間外です</div>}
 
-          {/* --- 抽選 --- */}
-          <div className="admin-section">
-            <h3>抽選</h3>
-            <label>
-              抽選名:
-              <input
-                type="text"
-                value={lotteryTitle}
-                onChange={(e) => setLotteryTitle(e.target.value)}
-              />
-              <button
-                className="main-btn"
-                onClick={() =>
-                  socket.emit("admin_set_lottery_title", { title: lotteryTitle })
-                }
-              >
-                設定
-              </button>
-            </label>
-            <label>
-              抽選人数:
-              <input
-                type="number"
-                min="1"
-                value={drawCount}
-                onChange={(e) => setDrawCount(Number(e.target.value))}
-              />
-            </label>
-            <label>
-              対戦数以上:
-              <input
-                type="number"
-                min="0"
-                value={minMatches}
-                onChange={(e) => setMinMatches(Number(e.target.value))}
-              />
-            </label>
-            <label>
-              ログイン時間以上(時間):
-              <input
-                type="number"
-                min="0"
-                value={minLoginHours}
-                onChange={(e) => setMinLoginHours(Number(e.target.value))}
-              />
-            </label>
-            <button className="main-btn" onClick={handleDrawLots}>
-              抽選する
-            </button>
-            <ul>
-              {Array.isArray(drawResult) &&
-                drawResult.map((u, i) => <li key={i}>{u.name}</li>)}
-            </ul>
-          </div>
-
-          {/* --- 抽選履歴 --- */}
-          <div className="admin-section">
-            <h3>抽選履歴</h3>
-            {lotteryHistory.length === 0 ? (
-              <p style={{ color: "lightgray" }}>まだ抽選履歴はありません</p>
-            ) : (
-              <table style={{ color: "white", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th>抽選名</th>
-                    <th>当選者</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lotteryHistory.map((l, idx) => (
-                    <tr key={idx}>
-                      <td>{l.title}</td>
-                      <td>
-                        {(Array.isArray(l.winners) ? l.winners : []).map(
-                          (w, i) => (
-                            <span key={i}>
-                              {w.name}
-                              {i < l.winners.length - 1 ? ", " : ""}
-                            </span>
-                          )
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {/* --- 自動ログアウト設定 --- */}
-          <div className="admin-section">
-            <h3>自動ログアウト設定</h3>
-            <label>
-              ログインからの時間(時間):
-              <input
-                type="number"
-                min="1"
-                value={autoLogoutHours}
-                onChange={(e) => setAutoLogoutHours(Number(e.target.value))}
-              />
-            </label>
-            <button className="main-btn" onClick={handleUpdateAutoLogout}>
-              更新
-            </button>
-          </div>
-
-          {/* --- ログイン中ユーザー --- */}
-          <div className="admin-section">
-            <h3>ログイン中のユーザー</h3>
-            <table style={{ color: "white", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th>番号</th>
-                  <th>名前</th>
-                  <th>対戦数</th>
-                  <th>勝</th>
-                  <th>敗</th>
-                  <th>ログイン時間</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {usersList.map((u, index) => {
-                  const win = u.history
-                    ? u.history.filter((h) => h.result === "WIN").length
-                    : 0;
-                  const lose = u.history
-                    ? u.history.filter((h) => h.result === "LOSE").length
-                    : 0;
-                  const loginTime = u.loginTime
-                    ? new Date(u.loginTime).toLocaleString()
-                    : "未ログイン";
-                  return (
-                    <tr key={u.id}>
-                      <td>{index + 1}</td>
-                      <td>{u.name}</td>
-                      <td>{u.history?.length || 0}</td>
-                      <td>{win}</td>
-                      <td>{lose}</td>
-                      <td>{loginTime}</td>
-                      <td>
-                        <button
-                          className="main-btn"
-                          onClick={() => handleLogoutUser(u.id, u.name)}
-                        >
-                          ログアウト
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <button className="main-btn" onClick={handleAdminLogoutAll}>
-              全ユーザーをログアウト
-            </button>
-          </div>
-
-          {/* --- 対戦中の部屋一覧 --- */}
-          <div className="admin-section">
-            <h3>対戦中の部屋一覧</h3>
-            {activeMatches.length === 0 ? (
-              <p style={{ color: "lightgray" }}>現在対戦中の部屋はありません</p>
-            ) : (
-              <table style={{ color: "white", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th>卓番号</th>
-                    <th>プレイヤー1</th>
-                    <th>プレイヤー2</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeMatches.map((m, i) => (
-                    <tr key={i}>
-                      <td>{m.deskNum}</td>
-                      <td>{m.player1}</td>
-                      <td>{m.player2}</td>
-                      <td>
-                        <button
-                          className="main-btn"
-                          onClick={() =>
-                            handleAdminReportWin(m.player1SessionId, m.deskNum)
-                          }
-                        >
-                          プレイヤー1勝利
-                        </button>
-                        <button
-                          className="main-btn"
-                          onClick={() =>
-                            handleAdminReportWin(m.player2SessionId, m.deskNum)
-                          }
-                        >
-                          プレイヤー2勝利
-                        </button>
-                        <button
-                          className="main-btn"
-                          onClick={() => handleAdminReportBothLose(m.deskNum)}
-                        >
-                          両者敗北
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {/* --- 管理者ログアウト --- */}
-          <div className="admin-section">
-            <button className="main-btn" onClick={handleAdminLogout}>
-              管理者画面からログアウト
-            </button>
-          </div>
-        </div>
-      ) : opponent ? (
-        // 対戦中画面
-        <div className="battle-screen">
-          <h3>対戦相手: {opponent.name}</h3>
-          <div>卓番号: {deskNum}</div>
-          <button className="main-btn" onClick={handleWinReport}>
-            勝利報告
+      {/* 抽選結果 */}
+      {lotteryList && Array.isArray(lotteryList) && (
+        <div style={{ marginTop: "15px", width: "100%" }}>
+          <button className="main-btn" onClick={() => setShowLottery(!showLottery)} style={{ padding: "10px 20px", fontSize: "16px" }}>
+            {showLottery ? "抽選結果を閉じる" : "抽選結果"}
           </button>
-        </div>
-      ) : (
-        // 通常ユーザー画面（メニュー画面）
-        <div className="menu-screen">
-          <div className="header">{user?.name}</div>
-          {!searching && matchEnabled && (
-            <button className="main-btn" onClick={handleFindOpponent}>
-              対戦相手を探す
-            </button>
-          )}
-          {searching && (
-            <button className="main-btn" onClick={handleCancelSearch}>
-              対戦相手を探しています…
-            </button>
-          )}
-          {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
-          <button className="main-btn" onClick={handleLogout}>
-            ログアウト
-          </button>
-          {lotteryList && Array.isArray(lotteryList) && (
-            <div style={{ marginTop: "15px" }}>
-              <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
-                {showLottery ? "抽選結果を閉じる" : "抽選結果"}
-              </button>
-              {showLottery && (
-                <div style={{ marginTop: "10px", color: "yellow" }}>
-                  {lotteryList.length === 0 ? (
-                    <p style={{ color: "lightgray" }}>発表されていません</p>
-                  ) : (
-                    <>
-                      {lotteryWinnerTitles
-                        .slice()
-                        .reverse()
-                        .map((title, idx) => (
-                          <p key={idx} style={{ color: "red", fontWeight: "bold" }}>
-                            「{title}」が当選しました！
-                          </p>
+          {showLottery && (
+            <div style={{ marginTop: "10px", color: "yellow" }}>
+              {lotteryList.length === 0 ? (
+                <p style={{ color: "lightgray" }}>発表されていません</p>
+              ) : (
+                <>
+                  {lotteryWinnerTitles.slice().reverse().map((title, idx) => (
+                    <p key={idx} style={{ color: "red", fontWeight: "bold" }}>「{title}」が当選しました！</p>
+                  ))}
+                  {lotteryList.slice().reverse().map((lottery, idx) => (
+                    <div key={idx} style={{ marginBottom: "10px" }}>
+                      <h4>{lottery?.title || "抽選"} 当選者一覧</h4>
+                      <ul>
+                        {(Array.isArray(lottery?.winners) ? lottery.winners : []).map((w, i) => (
+                          <li key={i}>{w?.name || "未登録"}</li>
                         ))}
-                      {lotteryList
-                        .slice()
-                        .reverse()
-                        .map((lottery, idx) => (
-                          <div key={idx} style={{ marginBottom: "10px" }}>
-                            <h4>{lottery?.title || "抽選"} 当選者一覧</h4>
-                            <ul>
-                              {(Array.isArray(lottery?.winners) ? lottery.winners : []).map(
-                                (w, i) => (
-                                  <li key={i}>{w?.name || "未登録"}</li>
-                                )
-                              )}
-                            </ul>
-                          </div>
-                        ))}
-                    </>
-                  )}
-                </div>
+                      </ul>
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           )}
-          <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
-            <div className="history-list">
-              <h4>対戦履歴</h4>
-              <table>
-                <thead>
-                  <tr>
-                    <th>No.</th>
-                    <th>対戦相手</th>
-                    <th>結果</th>
-                    <th>日時</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayHistory.map((h, i) => (
-                    <tr key={i}>
-                      <td>{i + 1}</td>
-                      <td>{h.opponent}</td>
-                      <td
-                        className={
-                          h.result === "WIN" ? "win" : h.result === "LOSE" ? "lose" : ""
-                        }
-                      >
-                        {h.result}
-                      </td>
-                      <td>{h.endTime ? new Date(h.endTime).toLocaleString() : ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
       )}
+
+      {/* 対戦履歴 */}
+      <div style={{ marginTop: "15px", width: "100%" }}>
+        <div className="history-list">
+          <h4>対戦履歴</h4>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", minWidth: "400px", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th>No.</th><th>対戦相手</th><th>結果</th><th>日時</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayHistory.map((h, i) => (
+                  <tr key={i}>
+                    <td>{i + 1}</td>
+                    <td>{h.opponent}</td>
+                    <td className={h.result === "WIN" ? "win" : h.result === "LOSE" ? "lose" : ""}>{h.result}</td>
+                    <td>{h.endTime ? new Date(h.endTime).toLocaleString() : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* ログアウトボタン（履歴下） */}
+      <button className="main-btn" onClick={handleLogout} style={{ marginTop: "20px", padding: "10px 20px", fontSize: "16px" }}>ログアウト</button>
     </div>
   );
 }
