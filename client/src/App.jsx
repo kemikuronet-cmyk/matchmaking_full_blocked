@@ -31,6 +31,7 @@ function App() {
   const [autoLogoutHours, setAutoLogoutHours] = useState(12);
   const [lotteryHistory, setLotteryHistory] = useState([]);
   const [activeMatches, setActiveMatches] = useState([]);
+  const [confirmWinDialog, setConfirmWinDialog] = useState(null);
   const [awaitingConfirm, setAwaitingConfirm] = useState(false);
 
   const loginAttempted = useRef(false);
@@ -60,6 +61,7 @@ function App() {
       setName(u.name);
       localStorage.setItem("user", JSON.stringify(u));
       setSearching(u.status === "searching");
+
       setHistory((prev) => (u.history && u.history.length ? u.history : prev));
       setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
       setLotteryTitle("");
@@ -148,18 +150,8 @@ function App() {
     socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
-    // --- 敗北報告は window.confirm に変更 ---
     socket.on("confirm_opponent_win", ({ deskNum, winnerName }) => {
-      const ok = window.confirm(`${winnerName} が勝利を報告しました。あなたの敗北として登録しますか？`);
-      socket.emit("opponent_win_response", { deskNum, accepted: ok });
-      if (ok) {
-        setOpponent(null);
-        setDeskNum(null);
-        setSearching(false);
-        alert("敗北が登録されました");
-      } else {
-        alert("敗北登録はキャンセルされました");
-      }
+      setConfirmWinDialog({ deskNum, winnerName });
     });
 
     socket.on("opponent_win_finalized", () => {
@@ -228,6 +220,28 @@ function App() {
     setAwaitingConfirm(true);
   };
 
+  const handleConfirmOpponentWin = (accepted) => {
+    if (!confirmWinDialog) return;
+    if (!window.confirm(`${confirmWinDialog.winnerName} が勝利を報告しました。敗北として登録しますか？`)) {
+      setConfirmWinDialog(null);
+      return;
+    }
+    socket.emit("opponent_win_response", {
+      deskNum: confirmWinDialog.deskNum,
+      accepted,
+    });
+    setConfirmWinDialog(null);
+    setAwaitingConfirm(false);
+    if (accepted) {
+      setOpponent(null);
+      setDeskNum(null);
+      setSearching(false);
+      alert("敗北が登録されました");
+    } else {
+      alert("敗北登録はキャンセルされました");
+    }
+  };
+
   const handleLogout = () => {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
@@ -275,7 +289,6 @@ function App() {
 
   const displayHistory = history || [];
 
-  // --- JSX: 現行 App.jsx の return 内を丸ごと保持 ---
   return (
     <div className="app">
       {!loggedIn && !adminMode ? (
@@ -432,103 +445,39 @@ function App() {
                   <th>対戦数</th>
                   <th>勝</th>
                   <th>敗</th>
-                  <th>ログイン時間</th>
+                  <th>状態</th>
                   <th>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {usersList.map((u, index) => {
-                  const win = u.history
-                    ? u.history.filter((h) => h.result === "WIN").length
-                    : 0;
-                  const lose = u.history
-                    ? u.history.filter((h) => h.result === "LOSE").length
-                    : 0;
-                  const loginTime = u.loginTime
-                    ? new Date(u.loginTime).toLocaleString()
-                    : "未ログイン";
-                  return (
-                    <tr key={u.id}>
-                      <td>{index + 1}</td>
-                      <td>{u.name}</td>
-                      <td>{u.history?.length || 0}</td>
-                      <td>{win}</td>
-                      <td>{lose}</td>
-                      <td>{loginTime}</td>
-                      <td>
-                        <button
-                          className="main-btn"
-                          onClick={() => handleLogoutUser(u.id, u.name)}
-                        >
-                          ログアウト
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {usersList.map((u, i) => (
+                  <tr key={i}>
+                    <td>{i + 1}</td>
+                    <td>{u.name}</td>
+                    <td>{u.battles || 0}</td>
+                    <td>{u.win || 0}</td>
+                    <td>{u.lose || 0}</td>
+                    <td>{u.status}</td>
+                    <td>
+                      <button
+                        className="admin-btn"
+                        onClick={() => handleLogoutUser(u.sessionId, u.name)}
+                      >
+                        ログアウト
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
             <button className="main-btn" onClick={handleAdminLogoutAll}>
-              全ユーザーをログアウト
+              全員ログアウト
             </button>
           </div>
 
-          {/* --- 対戦中の部屋一覧 --- */}
-          <div className="admin-section">
-            <h3>対戦中の部屋一覧</h3>
-            {activeMatches.length === 0 ? (
-              <p style={{ color: "lightgray" }}>現在対戦中の部屋はありません</p>
-            ) : (
-              <table style={{ color: "white", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th>卓番号</th>
-                    <th>プレイヤー1</th>
-                    <th>プレイヤー2</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeMatches.map((m, i) => (
-                    <tr key={i}>
-                      <td>{m.deskNum}</td>
-                      <td>{m.player1}</td>
-                      <td>{m.player2}</td>
-                      <td>
-                        <button
-                          className="main-btn"
-                          onClick={() =>
-                            handleAdminReportWin(m.player1SessionId, m.deskNum)
-                          }
-                        >
-                          プレイヤー1勝利
-                        </button>
-                        <button
-                          className="main-btn"
-                          onClick={() =>
-                            handleAdminReportWin(m.player2SessionId, m.deskNum)
-                          }
-                        >
-                          プレイヤー2勝利
-                        </button>
-                        <button
-                          className="main-btn"
-                          onClick={() => handleAdminReportBothLose(m.deskNum)}
-                        >
-                          両者敗北
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {/* --- 管理者ログアウト --- */}
-          <div className="admin-section">
+          <div style={{ marginTop: "15px" }}>
             <button className="main-btn" onClick={handleAdminLogout}>
-              管理者画面からログアウト
+              管理者ログアウト
             </button>
           </div>
         </div>
@@ -603,52 +552,40 @@ function App() {
             </div>
           )}
 
-          {confirmWinDialog && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-              <div className="bg-white p-4 rounded">
-                <p>{confirmWinDialog.winnerName} が勝利を報告しました。敗北として登録しますか？</p>
-                <button onClick={() => handleConfirmOpponentWin(true)}>承認</button>
-                <button onClick={() => handleConfirmOpponentWin(false)}>拒否</button>
-              </div>
-            </div>
-          )}
-
-          <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
-            <div className="history-list">
-              <h4>対戦履歴</h4>
-              <table>
-                <thead>
-                  <tr>
-                    <th>No.</th>
-                    <th>対戦相手</th>
-                    <th>結果</th>
-                    <th>日時</th>
+          <div className="history-list" style={{ marginTop: "15px" }}>
+            <h4>対戦履歴</h4>
+            <table>
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>対戦相手</th>
+                  <th>結果</th>
+                  <th>日時</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayHistory.map((h, i) => (
+                  <tr key={i}>
+                    <td>{i + 1}</td>
+                    <td>{h.opponent}</td>
+                    <td
+                      className={
+                        h.result === "WIN" ? "win" : h.result === "LOSE" ? "lose" : ""
+                      }
+                    >
+                      {h.result}
+                    </td>
+                    <td>{h.endTime ? new Date(h.endTime).toLocaleString() : ""}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {displayHistory.map((h, i) => (
-                    <tr key={i}>
-                      <td>{i + 1}</td>
-                      <td>{h.opponent}</td>
-                      <td
-                        className={
-                          h.result === "WIN" ? "win" : h.result === "LOSE" ? "lose" : ""
-                        }
-                      >
-                        {h.result}
-                      </td>
-                      <td>{h.endTime ? new Date(h.endTime).toLocaleString() : ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-            <div style={{ textAlign: "center", marginTop: "10px" }}>
-              <button className="main-btn" onClick={handleLogout}>
-                ログアウト
-              </button>
-            </div>
+          <div style={{ textAlign: "center", marginTop: "10px" }}>
+            <button className="main-btn" onClick={handleLogout}>
+              ログアウト
+            </button>
           </div>
         </div>
       )}
