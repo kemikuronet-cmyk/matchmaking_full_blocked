@@ -62,7 +62,9 @@ function App() {
       localStorage.setItem("user", JSON.stringify(u));
       setSearching(u.status === "searching");
 
+      // 履歴をマージ: サーバー履歴が空でも既存履歴を保持
       setHistory((prev) => (u.history && u.history.length ? u.history : prev));
+
       setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
       setLotteryTitle("");
       if (u.currentOpponent) {
@@ -102,6 +104,7 @@ function App() {
       setName("");
     });
 
+    // --- 履歴更新: 既存履歴を保持しつつ最新履歴を反映 ---
     socket.on("history", (hist) => {
       setHistory((prev) => {
         if (!hist || hist.length === 0) return prev;
@@ -150,8 +153,36 @@ function App() {
     socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
-    socket.on("confirm_opponent_win", ({ deskNum, winnerName }) => {
-      setConfirmWinDialog({ deskNum, winnerName });
+    // --- 二段階勝利報告 ---
+    // 変更点: 敗北側にモーダルではなくネイティブ window.confirm で確認を出す
+    socket.on("confirm_opponent_win", ({ deskNum: deskFromServer, winnerName }) => {
+      try {
+        // メッセージを勝利報告と同じ調子で出す
+        const msg = `${winnerName} の勝ちで登録します。よろしいですか？`;
+        const accepted = window.confirm(msg);
+
+        // サーバーへ結果を即送信（敗北側のレスポンス）
+        socket.emit("opponent_win_response", {
+          deskNum: deskFromServer,
+          accepted,
+        });
+
+        // ローカルUIの調整（サーバー側から最終通知が来るはずなので大きな処理はそちらに任せる）
+        setConfirmWinDialog(null);
+        setAwaitingConfirm(false);
+
+        if (accepted) {
+          // 敗北側の即時の見た目反映（サーバーからのhistory/opponent_win_finalizedでも更新される）
+          alert("敗北が登録されました");
+          setOpponent(null);
+          setDeskNum(null);
+          setSearching(false);
+        } else {
+          alert("敗北登録はキャンセルされました");
+        }
+      } catch (e) {
+        console.error("confirm_opponent_win handler error:", e);
+      }
     });
 
     socket.on("opponent_win_finalized", () => {
@@ -163,7 +194,7 @@ function App() {
     });
 
     socket.on("opponent_win_cancelled", () => {
-      alert("敗北報告がキャンセルされました");
+      alert("勝利報告がキャンセルされました");
       setAwaitingConfirm(false);
     });
 
@@ -184,6 +215,7 @@ function App() {
     return () => clearInterval(interval);
   }, [adminMode]);
 
+  // --- ハンドラ ---
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
@@ -212,6 +244,7 @@ function App() {
     socket.emit("cancel_find");
   };
 
+  // --- 勝利報告 ---
   const handleWinReport = () => {
     if (!deskNum) return;
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
@@ -219,14 +252,23 @@ function App() {
     setAwaitingConfirm(true);
   };
 
-  const handleConfirmOpponentWin = () => {
-    if (!deskNum) return;
-    if (!window.confirm("相手の勝利を敗北として登録しますか？")) return;
-    socket.emit("report_lose_request");
-    setOpponent(null);
-    setDeskNum(null);
-    setSearching(false);
-    alert("敗北が登録されました");
+  const handleConfirmOpponentWin = (accepted) => {
+    // この関数は UI 側のモーダルを残している場合のクリック用（現状はネイティブ confirm を使用）
+    if (!confirmWinDialog) return;
+    socket.emit("opponent_win_response", {
+      deskNum: confirmWinDialog.deskNum,
+      accepted,
+    });
+    setConfirmWinDialog(null);
+    setAwaitingConfirm(false);
+    if (accepted) {
+      setOpponent(null);
+      setDeskNum(null);
+      setSearching(false);
+      alert("敗北が登録されました");
+    } else {
+      alert("敗北登録はキャンセルされました");
+    }
   };
 
   const handleLogout = () => {
@@ -542,18 +584,9 @@ function App() {
               相手の確認を待っています…
             </div>
           ) : (
-            <>
-              <button className="main-btn" onClick={handleWinReport}>
-                勝利報告
-              </button>
-              <button
-                className="main-btn"
-                style={{ marginLeft: "10px" }}
-                onClick={handleConfirmOpponentWin}
-              >
-                敗北登録
-              </button>
-            </>
+            <button className="main-btn" onClick={handleWinReport}>
+              勝利報告
+            </button>
           )}
         </div>
       ) : (
@@ -609,6 +642,18 @@ function App() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* confirm_opponent_win はネイティブ confirm を使用するため、モーダルUIは不要だが
+              互換性のために条件分岐用の UI を残している（現状は表示されないはず） */}
+          {confirmWinDialog && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+              <div className="bg-white p-4 rounded">
+                <p>{confirmWinDialog.winnerName} が勝利を報告しました。敗北として登録しますか？</p>
+                <button onClick={() => handleConfirmOpponentWin(true)}>承認</button>
+                <button onClick={() => handleConfirmOpponentWin(false)}>拒否</button>
+              </div>
             </div>
           )}
 
