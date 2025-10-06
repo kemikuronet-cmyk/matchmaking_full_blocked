@@ -31,6 +31,7 @@ function App() {
   const [autoLogoutHours, setAutoLogoutHours] = useState(12);
   const [lotteryHistory, setLotteryHistory] = useState([]);
   const [activeMatches, setActiveMatches] = useState([]);
+  const [confirmWinDialog, setConfirmWinDialog] = useState(null);
 
   const loginAttempted = useRef(false);
 
@@ -136,25 +137,9 @@ function App() {
     socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
-    // --- 勝利報告 二段階確認 ---
-    socket.on("confirm_opponent_win", ({ winnerName }) => {
-      const confirmLose = window.confirm(
-        `${winnerName} が勝利報告しました。敗北として登録しますか？`
-      );
-      socket.emit("opponent_win_confirmed", { accepted: confirmLose });
-      if (confirmLose) {
-        alert("勝敗が登録されました");
-        setOpponent(null);
-        setDeskNum(null);
-        setSearching(false);
-      } else {
-        alert("勝敗登録はキャンセルされました");
-      }
-    });
-
-    socket.on("win_report_cancelled", () => {
-      alert("対戦相手がキャンセルしたため、勝利登録は中止されました");
-      // 対戦画面はそのまま維持して再報告可能
+    // --- 二段階勝利報告 ---
+    socket.on("confirm_opponent_win", ({ deskNum, winnerName }) => {
+      setConfirmWinDialog({ deskNum, winnerName });
     });
 
     return () => socket.off();
@@ -205,7 +190,21 @@ function App() {
 
   const handleWinReport = () => {
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
-    socket.emit("report_win_request");
+    if (deskNum) socket.emit("report_win");
+  };
+
+  const handleConfirmOpponentWin = (accepted) => {
+    if (!confirmWinDialog) return;
+    socket.emit(`opponent_confirm_${confirmWinDialog.deskNum}`, { accepted });
+    setConfirmWinDialog(null);
+    if (accepted) {
+      alert("敗北が登録されました");
+      setOpponent(null);
+      setDeskNum(null);
+      setSearching(false);
+    } else {
+      alert("敗北登録はキャンセルされました");
+    }
   };
 
   const handleLogout = () => {
@@ -572,6 +571,16 @@ function App() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {confirmWinDialog && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+              <div className="bg-white p-4 rounded">
+                <p>{confirmWinDialog.winnerName} が勝利を報告しました。敗北として登録しますか？</p>
+                <button onClick={() => handleConfirmOpponentWin(true)}>承認</button>
+                <button onClick={() => handleConfirmOpponentWin(false)}>拒否</button>
+              </div>
             </div>
           )}
 
