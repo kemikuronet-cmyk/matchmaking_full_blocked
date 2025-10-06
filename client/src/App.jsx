@@ -136,21 +136,13 @@ function App() {
     socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
-    // --- 勝敗通知追加 ---
-    socket.on("win_reported", () => {
+    // --- 勝利報告で相手にも通知 ---
+    socket.on("lose_reported", ({ deskNum }) => {
+      alert("あなたは敗北として登録されました");
       setOpponent(null);
       setDeskNum(null);
       setSearching(false);
       socket.emit("request_history");
-      alert("勝利が登録されました");
-    });
-
-    socket.on("lose_reported", ({ opponentName }) => {
-      setOpponent(null);
-      setDeskNum(null);
-      setSearching(false);
-      socket.emit("request_history");
-      alert(`「${opponentName}」に敗北しました`);
     });
 
     return () => socket.off();
@@ -256,7 +248,6 @@ function App() {
 
   const displayHistory = history || [];
 
-  // --- レンダリング ---
   return (
     <div className="app">
       {!loggedIn && !adminMode ? (
@@ -289,14 +280,14 @@ function App() {
         <div className="admin-screen">
           <div className="header">管理者画面</div>
 
-          {/* マッチング */}
+          {/* --- マッチング --- */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleToggleMatch}>
               {matchEnabled ? "マッチング中" : "マッチング開始"}
             </button>
           </div>
 
-          {/* 抽選 */}
+          {/* --- 抽選 --- */}
           <div className="admin-section">
             <h3>抽選</h3>
             <label>
@@ -351,7 +342,7 @@ function App() {
             </ul>
           </div>
 
-          {/* 抽選履歴 */}
+          {/* --- 抽選履歴 --- */}
           <div className="admin-section">
             <h3>抽選履歴</h3>
             {lotteryHistory.length === 0 ? (
@@ -385,7 +376,7 @@ function App() {
             )}
           </div>
 
-          {/* 自動ログアウト設定 */}
+          {/* --- 自動ログアウト設定 --- */}
           <div className="admin-section">
             <h3>自動ログアウト設定</h3>
             <label>
@@ -402,7 +393,7 @@ function App() {
             </button>
           </div>
 
-          {/* ログイン中ユーザー */}
+          {/* --- ログイン中ユーザー --- */}
           <div className="admin-section">
             <h3>ログイン中のユーザー</h3>
             <table style={{ color: "white", borderCollapse: "collapse" }}>
@@ -454,7 +445,7 @@ function App() {
             </button>
           </div>
 
-          {/* 対戦中の部屋一覧 */}
+          {/* --- 対戦中の部屋一覧 --- */}
           <div className="admin-section">
             <h3>対戦中の部屋一覧</h3>
             {activeMatches.length === 0 ? (
@@ -506,7 +497,7 @@ function App() {
             )}
           </div>
 
-          {/* 管理者ログアウト */}
+          {/* --- 管理者ログアウト --- */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleAdminLogout}>
               管理者画面からログアウト
