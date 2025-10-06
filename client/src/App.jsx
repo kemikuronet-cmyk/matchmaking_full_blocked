@@ -183,7 +183,11 @@ function App() {
   };
 
   const handleWinReport = () => {
-    if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
+    if (!opponent) return;
+    const confirmWin = window.confirm(
+      `対戦相手: ${opponent.name}\nあなたの勝利で登録しますか？`
+    );
+    if (!confirmWin) return;
     socket.emit("report_win");
     setOpponent(null);
     setDeskNum(null);
@@ -243,7 +247,6 @@ function App() {
   return (
     <div className="app">
       {!loggedIn && !adminMode ? (
-        // ログイン画面
         <div className="login-screen">
           <div className="user-login-center">
             <h2>ユーザーとしてログイン</h2>
@@ -270,7 +273,6 @@ function App() {
           </div>
         </div>
       ) : adminMode ? (
-        // 管理者画面
         <div className="admin-screen">
           <div className="header">管理者画面</div>
 
@@ -354,14 +356,12 @@ function App() {
                     <tr key={idx}>
                       <td>{l.title}</td>
                       <td>
-                        {(Array.isArray(l.winners) ? l.winners : []).map(
-                          (w, i) => (
-                            <span key={i}>
-                              {w.name}
-                              {i < l.winners.length - 1 ? ", " : ""}
-                            </span>
-                          )
-                        )}
+                        {(Array.isArray(l.winners) ? l.winners : []).map((w, i) => (
+                          <span key={i}>
+                            {w.name}
+                            {i < l.winners.length - 1 ? ", " : ""}
+                          </span>
+                        ))}
                       </td>
                     </tr>
                   ))}
@@ -499,7 +499,6 @@ function App() {
           </div>
         </div>
       ) : opponent ? (
-        // 対戦中画面
         <div className="battle-screen">
           <h3>対戦相手: {opponent.name}</h3>
           <div>卓番号: {deskNum}</div>
@@ -508,7 +507,6 @@ function App() {
           </button>
         </div>
       ) : (
-        // 通常ユーザー画面（メニュー画面）
         <div className="menu-screen">
           <div className="header">{user?.name}</div>
           {!searching && matchEnabled && (
@@ -522,7 +520,6 @@ function App() {
             </button>
           )}
           {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
-
           {lotteryList && Array.isArray(lotteryList) && (
             <div style={{ marginTop: "15px", textAlign: "center" }}>
               <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
@@ -563,7 +560,6 @@ function App() {
               )}
             </div>
           )}
-
           <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
             <div className="history-list">
               <h4>対戦履歴</h4>
@@ -594,8 +590,6 @@ function App() {
                 </tbody>
               </table>
             </div>
-
-            {/* --- ログアウトボタンを履歴の下に配置 & 中央寄せ --- */}
             <div style={{ textAlign: "center", marginTop: "10px" }}>
               <button className="main-btn" onClick={handleLogout}>
                 ログアウト
