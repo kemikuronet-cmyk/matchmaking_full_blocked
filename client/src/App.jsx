@@ -61,7 +61,10 @@ function App() {
       setName(u.name);
       localStorage.setItem("user", JSON.stringify(u));
       setSearching(u.status === "searching");
-      setHistory(u.history || []);
+
+      // 履歴をマージ: サーバー履歴が空でも既存履歴を保持
+      setHistory((prev) => (u.history && u.history.length ? u.history : prev));
+
       setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
       setLotteryTitle("");
       if (u.currentOpponent) {
@@ -101,7 +104,19 @@ function App() {
       setName("");
     });
 
-    socket.on("history", (hist) => setHistory(hist));
+    // --- 履歴更新: 既存履歴を保持しつつ最新履歴を反映 ---
+    socket.on("history", (hist) => {
+      setHistory((prev) => {
+        if (!hist || hist.length === 0) return prev;
+        const merged = [...prev];
+        hist.forEach((h) => {
+          if (!merged.find((p) => p.endTime === h.endTime && p.opponent === h.opponent))
+            merged.push(h);
+        });
+        return merged;
+      });
+    });
+
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
     socket.on("admin_ok", () => {
       setAdminMode(true);
@@ -140,23 +155,7 @@ function App() {
 
     // --- 二段階勝利報告 ---
     socket.on("confirm_opponent_win", ({ deskNum, winnerName }) => {
-      // 敗北側にもOK/キャンセルで確認する
-      const confirmResult = window.confirm(
-        `${winnerName} の勝ちで登録します。よろしいですか？`
-      );
-      socket.emit("opponent_win_response", {
-        deskNum,
-        accepted: confirmResult,
-      });
-      setAwaitingConfirm(false);
-      if (confirmResult) {
-        setOpponent(null);
-        setDeskNum(null);
-        setSearching(false);
-        alert("敗北が登録されました");
-      } else {
-        alert("敗北登録はキャンセルされました");
-      }
+      setConfirmWinDialog({ deskNum, winnerName });
     });
 
     socket.on("opponent_win_finalized", () => {
@@ -218,11 +217,30 @@ function App() {
     socket.emit("cancel_find");
   };
 
+  // --- 勝利報告 ---
   const handleWinReport = () => {
     if (!deskNum) return;
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
     socket.emit("report_win_request");
     setAwaitingConfirm(true);
+  };
+
+  const handleConfirmOpponentWin = (accepted) => {
+    if (!confirmWinDialog) return;
+    socket.emit("opponent_win_response", {
+      deskNum: confirmWinDialog.deskNum,
+      accepted,
+    });
+    setConfirmWinDialog(null);
+    setAwaitingConfirm(false);
+    if (accepted) {
+      setOpponent(null);
+      setDeskNum(null);
+      setSearching(false);
+      alert("敗北が登録されました");
+    } else {
+      alert("敗北登録はキャンセルされました");
+    }
   };
 
   const handleLogout = () => {
