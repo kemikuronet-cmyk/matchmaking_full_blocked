@@ -187,38 +187,46 @@ io.on("connection", (socket) => {
     const opponent = users.find(u => u.sessionId === user.opponentSessionId);
     if (!opponent) return;
 
-    // 相手に確認依頼
-    io.to(opponent.id).emit("confirm_opponent_win", { deskNum, winnerName: user.name });
-
-    // リクエストした側は「確認待ち」表示
+    // 勝利報告ユーザーに待機表示
     io.to(user.id).emit("waiting_opponent_confirm");
 
-    // 相手の返答を待つ
-    socket.once(`opponent_confirm_${deskNum}`, ({ accepted }) => {
-      const now = new Date();
-
-      if (accepted) {
-        // 勝敗を登録
-        user.history.push({ opponent: opponent.name, result: "WIN", startTime: now, endTime: now });
-        opponent.history.push({ opponent: user.name, result: "LOSE", startTime: now, endTime: now });
-      }
-
-      // 両者ステータスをリセット
-      user.status = "idle"; user.opponentSessionId = null; user.deskNum = null;
-      opponent.status = "idle"; opponent.opponentSessionId = null; opponent.deskNum = null;
-      delete matches[deskNum];
-
-      // 履歴更新
-      io.to(user.id).emit("history", user.history);
-      io.to(opponent.id).emit("history", opponent.history);
-
-      // メニューに戻す
-      io.to(user.id).emit("return_to_menu_battle");
-      io.to(opponent.id).emit("return_to_menu_battle");
+    // 相手に確認依頼
+    io.to(opponent.id).emit("confirm_opponent_win", {
+      deskNum,
+      winnerName: user.name,
+      winnerSessionId: user.sessionId
     });
   });
 
-  // --- 管理者・抽選・既存処理（変更なし） ---
+  socket.on("opponent_confirm", ({ deskNum, accepted, winnerSessionId }) => {
+    const match = matches[deskNum];
+    if (!match || match.length !== 2) return;
+
+    const winner = users.find(u => u.sessionId === winnerSessionId);
+    const loser = users.find(u => u.sessionId !== winnerSessionId && match.includes(u.sessionId));
+    if (!winner || !loser) return;
+
+    const now = new Date();
+
+    if (accepted) {
+      winner.history.push({ opponent: loser.name, result: "WIN", startTime: now, endTime: now });
+      loser.history.push({ opponent: winner.name, result: "LOSE", startTime: now, endTime: now });
+    }
+
+    winner.status = "idle"; winner.opponentSessionId = null; winner.deskNum = null;
+    loser.status = "idle"; loser.opponentSessionId = null; loser.deskNum = null;
+    delete matches[deskNum];
+
+    io.to(winner.id).emit("history", winner.history);
+    io.to(loser.id).emit("history", loser.history);
+
+    io.to(winner.id).emit("return_to_menu_battle");
+    io.to(loser.id).emit("return_to_menu_battle");
+
+    if (accepted) io.to(loser.id).emit("lose_reported", { deskNum });
+  });
+
+  // --- 管理者・抽選・既存処理（略さず維持） ---
   socket.on("admin_get_active_matches", () => {
     const list = Object.entries(matches).map(([deskNum, sessionIds]) => {
       const player1 = users.find(u => u.sessionId === sessionIds[0])?.name || "不明";
