@@ -54,7 +54,6 @@ function App() {
       loginAttempted.current = true;
     }
 
-    // --- Socket.ioイベント ---
     socket.on("login_ok", (u) => {
       setUser(u);
       setLoggedIn(true);
@@ -62,9 +61,7 @@ function App() {
       localStorage.setItem("user", JSON.stringify(u));
       setSearching(u.status === "searching");
 
-      // 履歴をマージ: サーバー履歴が空でも既存履歴を保持
       setHistory((prev) => (u.history && u.history.length ? u.history : prev));
-
       setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
       setLotteryTitle("");
       if (u.currentOpponent) {
@@ -104,7 +101,6 @@ function App() {
       setName("");
     });
 
-    // --- 履歴更新: 既存履歴を保持しつつ最新履歴を反映 ---
     socket.on("history", (hist) => {
       setHistory((prev) => {
         if (!hist || hist.length === 0) return prev;
@@ -188,7 +184,6 @@ function App() {
     return () => clearInterval(interval);
   }, [adminMode]);
 
-  // --- ハンドラ ---
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
@@ -217,7 +212,6 @@ function App() {
     socket.emit("cancel_find");
   };
 
-  // --- 勝利報告 ---
   const handleWinReport = () => {
     if (!deskNum) return;
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
@@ -225,6 +219,7 @@ function App() {
     setAwaitingConfirm(true);
   };
 
+  // --- 二段階勝利報告改修 ---
   const handleConfirmOpponentWin = (accepted) => {
     if (!confirmWinDialog) return;
     socket.emit("opponent_win_response", {
@@ -233,14 +228,17 @@ function App() {
     });
     setConfirmWinDialog(null);
     setAwaitingConfirm(false);
-    if (accepted) {
-      setOpponent(null);
-      setDeskNum(null);
-      setSearching(false);
-      alert("敗北が登録されました");
-    } else {
-      alert("敗北登録はキャンセルされました");
-    }
+
+    setTimeout(() => {
+      if (accepted) {
+        setOpponent(null);
+        setDeskNum(null);
+        setSearching(false);
+        alert("敗北が登録されました");
+      } else {
+        alert("敗北登録はキャンセルされました");
+      }
+    }, 50);
   };
 
   const handleLogout = () => {
