@@ -36,6 +36,12 @@ function App() {
 
   const loginAttempted = useRef(false);
 
+  // --- 新規追加: 管理者ログインハンドラ ---
+  const handleAdminLogin = () => {
+    if (!adminPassword.trim()) return alert("パスワードを入力してください");
+    socket.emit("admin_login", { password: adminPassword });
+  };
+
   useEffect(() => {
     if (!loginAttempted.current) {
       const savedUser = localStorage.getItem("user");
@@ -64,7 +70,6 @@ function App() {
       localStorage.setItem("user", JSON.stringify(u));
       setSearching(u.status === "searching");
 
-      // 履歴をマージ: サーバー履歴が空でも既存履歴を保持
       setHistory((prev) => {
         const merged = [...prev];
         if (u.history && u.history.length) {
