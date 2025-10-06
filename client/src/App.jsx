@@ -32,7 +32,7 @@ function App() {
   const [lotteryHistory, setLotteryHistory] = useState([]);
   const [activeMatches, setActiveMatches] = useState([]);
   const [confirmWinDialog, setConfirmWinDialog] = useState(null);
-  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
+  const [waitingOpponentConfirm, setWaitingOpponentConfirm] = useState(false);
 
   const loginAttempted = useRef(false);
 
@@ -83,7 +83,7 @@ function App() {
       setOpponent(null);
       setDeskNum(null);
       setSearching(false);
-      setAwaitingConfirm(false);
+      setWaitingOpponentConfirm(false);
     });
 
     socket.on("force_logout", ({ reason }) => {
@@ -100,8 +100,6 @@ function App() {
       setDeskNum(null);
       setLotteryWinnerTitles([]);
       setName("");
-      setAwaitingConfirm(false);
-      setConfirmWinDialog(null);
     });
 
     socket.on("history", (hist) => setHistory(hist));
@@ -142,21 +140,14 @@ function App() {
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
     // --- 二段階勝利報告 ---
-    socket.on("confirm_opponent_win", ({ deskNum, winnerName }) => {
-      setConfirmWinDialog({ deskNum, winnerName });
-    });
-
-    socket.on("opponent_win_finalized", () => {
-      alert("勝敗が確定しました");
-      setOpponent(null);
-      setDeskNum(null);
-      setSearching(false);
-      setAwaitingConfirm(false);
-    });
-
-    socket.on("opponent_win_cancelled", () => {
-      alert("勝利報告がキャンセルされました");
-      setAwaitingConfirm(false);
+    socket.on("confirm_opponent_win", ({ deskNum, winnerName, winnerSessionId }) => {
+      if (user?.sessionId === winnerSessionId) {
+        // 勝利報告したユーザー
+        setWaitingOpponentConfirm(true);
+      } else {
+        // 相手側に確認ダイアログ
+        setConfirmWinDialog({ deskNum, winnerName, winnerSessionId });
+      }
     });
 
     return () => socket.off();
@@ -205,24 +196,16 @@ function App() {
     socket.emit("cancel_find");
   };
 
-  // --- 改修: 二段階勝利報告 ---
   const handleWinReport = () => {
-    if (!deskNum) return;
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
-
-    // A側: 勝利報告 → 確認待ち
-    socket.emit("report_win_request", { deskNum });
-    setAwaitingConfirm(true);
+    if (deskNum) socket.emit("report_win");
   };
 
   const handleConfirmOpponentWin = (accepted) => {
     if (!confirmWinDialog) return;
-    socket.emit("opponent_win_response", {
-      deskNum: confirmWinDialog.deskNum,
-      accepted,
-    });
+    socket.emit("opponent_confirm", { deskNum: confirmWinDialog.deskNum, winnerSessionId: confirmWinDialog.winnerSessionId, accepted });
     setConfirmWinDialog(null);
-    setAwaitingConfirm(false);
+    if (!accepted) alert("敗北登録はキャンセルされました");
   };
 
   const handleLogout = () => {
@@ -238,8 +221,6 @@ function App() {
     setDeskNum(null);
     setLotteryWinnerTitles([]);
     setName("");
-    setAwaitingConfirm(false);
-    setConfirmWinDialog(null);
   };
 
   const handleToggleMatch = () =>
@@ -419,235 +400,163 @@ function App() {
             </button>
           </div>
 
-          {/* --- ログイン中ユーザー --- */}
+          {/* --- ログアウト --- */}
           <div className="admin-section">
-            <h3>ログイン中のユーザー</h3>
+            <button className="main-btn" onClick={handleAdminLogoutAll}>
+              全ユーザー強制ログアウト
+            </button>
+          </div>
+
+          {/* --- ユーザー一覧 --- */}
+          <div className="admin-section">
+            <h3>ユーザー一覧</h3>
+            <ul>
+              {Array.isArray(usersList) &&
+                usersList.map((u) => (
+                  <li key={u.id}>
+                    {u.name} ({u.status})
+                    <button
+                      className="admin-btn"
+                      onClick={() => handleLogoutUser(u.id, u.name)}
+                    >
+                      強制ログアウト
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </div>
+
+          {/* --- 対戦中部屋一覧 --- */}
+          <div className="admin-section">
+            <h3>対戦中部屋</h3>
             <table style={{ color: "white", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th>番号</th>
-                  <th>名前</th>
-                  <th>対戦数</th>
-                  <th>勝</th>
-                  <th>敗</th>
-                  <th>ログイン時間</th>
+                  <th>卓番号</th>
+                  <th>プレイヤー1</th>
+                  <th>プレイヤー2</th>
                   <th>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {usersList.map((u, index) => {
-                  const win = u.history
-                    ? u.history.filter((h) => h.result === "WIN").length
-                    : 0;
-                  const lose = u.history
-                    ? u.history.filter((h) => h.result === "LOSE").length
-                    : 0;
-                  const loginTime = u.loginTime
-                    ? new Date(u.loginTime).toLocaleString()
-                    : "未ログイン";
-                  return (
-                    <tr key={u.id}>
-                      <td>{index + 1}</td>
-                      <td>{u.name}</td>
-                      <td>{u.history?.length || 0}</td>
-                      <td>{win}</td>
-                      <td>{lose}</td>
-                      <td>{loginTime}</td>
-                      <td>
-                        <button
-                          className="main-btn"
-                          onClick={() => handleLogoutUser(u.id, u.name)}
-                        >
-                          ログアウト
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {activeMatches.map((m) => (
+                  <tr key={m.deskNum}>
+                    <td>{m.deskNum}</td>
+                    <td>{m.player1}</td>
+                    <td>{m.player2}</td>
+                    <td>
+                      <button
+                        className="admin-btn"
+                        onClick={() => handleAdminReportWin(m.player1SessionId, m.deskNum)}
+                      >
+                        {m.player1} 勝利登録
+                      </button>
+                      <button
+                        className="admin-btn"
+                        onClick={() => handleAdminReportWin(m.player2SessionId, m.deskNum)}
+                      >
+                        {m.player2} 勝利登録
+                      </button>
+                      <button
+                        className="admin-btn"
+                        onClick={() => handleAdminReportBothLose(m.deskNum)}
+                      >
+                        両者敗北
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-            <button className="main-btn" onClick={handleAdminLogoutAll}>
-              全ユーザーをログアウト
-            </button>
           </div>
 
-          {/* --- 対戦中の部屋一覧 --- */}
-          <div className="admin-section">
-            <h3>対戦中の部屋一覧</h3>
-            {activeMatches.length === 0 ? (
-              <p style={{ color: "lightgray" }}>現在対戦中の部屋はありません</p>
-            ) : (
-              <table style={{ color: "white", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th>卓番号</th>
-                    <th>プレイヤー1</th>
-                    <th>プレイヤー2</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeMatches.map((m, i) => (
-                    <tr key={i}>
-                      <td>{m.deskNum}</td>
-                      <td>{m.player1}</td>
-                      <td>{m.player2}</td>
-                      <td>
-                        <button
-                          className="main-btn"
-                          onClick={() =>
-                            handleAdminReportWin(m.player1SessionId, m.deskNum)
-                          }
-                        >
-                          プレイヤー1勝利
-                        </button>
-                        <button
-                          className="main-btn"
-                          onClick={() =>
-                            handleAdminReportWin(m.player2SessionId, m.deskNum)
-                          }
-                        >
-                          プレイヤー2勝利
-                        </button>
-                        <button
-                          className="main-btn"
-                          onClick={() => handleAdminReportBothLose(m.deskNum)}
-                        >
-                          両者敗北
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {/* --- 管理者ログアウト --- */}
-          <div className="admin-section">
-            <button className="main-btn" onClick={handleAdminLogout}>
-              管理者画面からログアウト
-            </button>
-          </div>
-        </div>
-      ) : opponent ? (
-        <div className="battle-screen">
-          <h3>対戦相手: {opponent.name}</h3>
-          <div>卓番号: {deskNum}</div>
-
-          {awaitingConfirm ? (
-            <div style={{ color: "yellow", marginTop: "10px" }}>
-              相手の確認を待っています…
-            </div>
-          ) : (
-            <button className="main-btn" onClick={handleWinReport}>
-              勝利報告
-            </button>
-          )}
+          <button className="main-btn" onClick={handleAdminLogout}>
+            管理者ログアウト
+          </button>
         </div>
       ) : (
         <div className="menu-screen">
-          <div className="header">{user?.name}</div>
-          {!searching && matchEnabled && (
-            <button className="main-btn" onClick={handleFindOpponent}>
-              対戦相手を探す
-            </button>
-          )}
-          {searching && (
-            <button className="main-btn" onClick={handleCancelSearch}>
-              対戦相手を探しています…
-            </button>
-          )}
-          {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
+          <h2>ようこそ {user?.name}</h2>
 
-          {lotteryList && Array.isArray(lotteryList) && (
-            <div style={{ marginTop: "15px", textAlign: "center" }}>
-              <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
-                {showLottery ? "抽選結果を閉じる" : "抽選結果"}
+          {opponent ? (
+            <div>
+              <h3>対戦中: {opponent.name}</h3>
+              <p>卓番号: {deskNum}</p>
+              {!waitingOpponentConfirm ? (
+                <button className="main-btn" onClick={handleWinReport}>
+                  勝利報告
+                </button>
+              ) : (
+                <p>相手の確認を待っています...</p>
+              )}
+            </div>
+          ) : searching ? (
+            <div>
+              <p>対戦相手を探しています...</p>
+              <button className="main-btn" onClick={handleCancelSearch}>
+                検索キャンセル
               </button>
-              {showLottery && (
-                <div style={{ marginTop: "10px", color: "yellow" }}>
-                  {lotteryList.length === 0 ? (
-                    <p style={{ color: "lightgray" }}>発表されていません</p>
-                  ) : (
-                    <>
-                      {lotteryWinnerTitles
-                        .slice()
-                        .reverse()
-                        .map((title, idx) => (
-                          <p key={idx} style={{ color: "red", fontWeight: "bold" }}>
-                            「{title}」が当選しました！
-                          </p>
-                        ))}
-                      {lotteryList
-                        .slice()
-                        .reverse()
-                        .map((lottery, idx) => (
-                          <div key={idx} style={{ marginBottom: "10px" }}>
-                            <h4>{lottery?.title || "抽選"} 当選者一覧</h4>
-                            <ul>
-                              {(Array.isArray(lottery?.winners) ? lottery.winners : []).map(
-                                (w, i) => (
-                                  <li key={i}>{w?.name || "未登録"}</li>
-                                )
-                              )}
-                            </ul>
-                          </div>
-                        ))}
-                    </>
-                  )}
-                </div>
+            </div>
+          ) : (
+            <div>
+              <button className="main-btn" onClick={handleFindOpponent}>
+                対戦相手を探す
+              </button>
+              <h3>履歴</h3>
+              {displayHistory.length === 0 ? (
+                <p style={{ color: "lightgray" }}>履歴はありません</p>
+              ) : (
+                <ul>
+                  {displayHistory.map((h, i) => (
+                    <li key={i}>
+                      {h.opponent}: {h.result}
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           )}
 
+          <h3>抽選</h3>
+          {showLottery && lotteryList.length > 0 && (
+            <ul>
+              {lotteryList.map((l, idx) => (
+                <li key={idx}>
+                  {l.title}:{" "}
+                  {(Array.isArray(l.winners) ? l.winners : []).map((w, i) => (
+                    <span key={i}>
+                      {w.name}
+                      {i < l.winners.length - 1 ? ", " : ""}
+                    </span>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          )}
+
           {confirmWinDialog && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-              <div className="bg-white p-4 rounded">
-                <p>{confirmWinDialog.winnerName} が勝利を報告しました。敗北として登録しますか？</p>
-                <button onClick={() => handleConfirmOpponentWin(true)}>OK</button>
-                <button onClick={() => handleConfirmOpponentWin(false)}>キャンセル</button>
-              </div>
+            <div className="confirm-dialog">
+              <p>
+                {confirmWinDialog.winnerName} の勝利を登録しますか？
+              </p>
+              <button
+                className="main-btn"
+                onClick={() => handleConfirmOpponentWin(true)}
+              >
+                はい
+              </button>
+              <button
+                className="main-btn"
+                onClick={() => handleConfirmOpponentWin(false)}
+              >
+                いいえ
+              </button>
             </div>
           )}
 
-          <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
-            <div className="history-list">
-              <h4>対戦履歴</h4>
-              <table>
-                <thead>
-                  <tr>
-                    <th>No.</th>
-                    <th>対戦相手</th>
-                    <th>結果</th>
-                    <th>日時</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayHistory.map((h, i) => (
-                    <tr key={i}>
-                      <td>{i + 1}</td>
-                      <td>{h.opponent}</td>
-                      <td
-                        className={
-                          h.result === "WIN" ? "win" : h.result === "LOSE" ? "lose" : ""
-                        }
-                      >
-                        {h.result}
-                      </td>
-                      <td>{h.endTime ? new Date(h.endTime).toLocaleString() : ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div style={{ textAlign: "center", marginTop: "10px" }}>
-              <button className="main-btn" onClick={handleLogout}>
-                ログアウト
-              </button>
-            </div>
-          </div>
+          <button className="main-btn" onClick={handleLogout}>
+            ログアウト
+          </button>
         </div>
       )}
     </div>
