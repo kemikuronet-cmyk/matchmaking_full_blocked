@@ -222,7 +222,7 @@ io.on("connection", (socket) => {
     socket.emit("return_to_menu_battle");
   });
 
-  // --- 管理者・抽選・既存処理 --- （省略せず現行のまま保持）
+  // --- 管理者・抽選・既存処理 ---
   socket.on("admin_get_active_matches", () => {
     const list = Object.entries(matches).map(([deskNum, sessionIds]) => {
       const player1 = users.find(u => u.sessionId === sessionIds[0])?.name || "不明";
@@ -231,7 +231,6 @@ io.on("connection", (socket) => {
     });
     socket.emit("admin_active_matches", list);
   });
-
 
   socket.on("admin_report_win", ({ winnerSessionId, deskNum }) => {
     const match = matches[deskNum];
