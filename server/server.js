@@ -21,6 +21,7 @@ let matchEnabled = false;
 let lotteryResults = []; // [{ title: 抽選名, winners: [sessionId,...] }]
 let autoLogoutHours = 12; // 初期値: 12時間
 let currentLotteryTitle = ""; // 現在設定されている抽選名
+let pendingWinConfirm = {}; // deskNum -> { requester: sessionId, confirmations: { sessionId: true/false } }
 
 // --- 卓番号割り当て ---
 function assignDeskNum() {
@@ -179,31 +180,68 @@ io.on("connection", (socket) => {
   });
 
   // --- 勝利報告（ユーザー） ---
-  socket.on("report_win", () => {
+  socket.on("report_win_request", () => {
     const user = users.find(u => u.id === socket.id);
     if (!user || !user.opponentSessionId || !user.deskNum) return;
+
+    const deskNum = user.deskNum;
+    pendingWinConfirm[deskNum] = {
+      requester: user.sessionId,
+      confirmations: { [user.sessionId]: true } // requester は自分のOKを既に押した
+    };
 
     const opponent = users.find(u => u.sessionId === user.opponentSessionId);
     if (!opponent) return;
 
-    const now = new Date();
-    user.history.push({ opponent: opponent.name, result: "WIN", startTime: now, endTime: now });
-    opponent.history.push({ opponent: user.name, result: "LOSE", startTime: now, endTime: now });
-
-    const deskNum = user.deskNum;
-
-    user.status = "idle"; user.opponentSessionId = null; user.deskNum = null;
-    opponent.status = "idle"; opponent.opponentSessionId = null; opponent.deskNum = null;
-    if (matches[deskNum]) delete matches[deskNum];
-
-    io.to(user.id).emit("history", user.history);
-    io.to(opponent.id).emit("history", opponent.history);
-
-    socket.emit("return_to_menu_battle");
-    io.to(opponent.id).emit("return_to_menu_battle");
+    io.to(opponent.id).emit("confirm_opponent_win");
   });
 
-  // --- 管理者：対戦中の部屋一覧取得 ---
+  socket.on("opponent_win_confirmed", ({ accepted }) => {
+    const user = users.find(u => u.id === socket.id);
+    if (!user || !user.deskNum) return;
+    const deskNum = user.deskNum;
+    const pending = pendingWinConfirm[deskNum];
+    if (!pending) return;
+
+    pending.confirmations[user.sessionId] = accepted;
+
+    if (!accepted) {
+      // 誰かがキャンセル → 登録中止
+      const matchUsers = matches[deskNum]
+        .map(sid => users.find(u => u.sessionId === sid))
+        .filter(Boolean);
+
+      matchUsers.forEach(u => io.to(u.id).emit("win_report_cancelled"));
+      delete pendingWinConfirm[deskNum];
+      return;
+    }
+
+    const allConfirmed = Object.values(pending.confirmations).every(v => v === true);
+    if (allConfirmed) {
+      // 両者OK → 勝敗登録
+      const winner = users.find(u => u.sessionId === pending.requester);
+      const loser = users.find(u => u.sessionId !== pending.requester && matches[deskNum].includes(u.sessionId));
+      if (!winner || !loser) return;
+
+      const now = new Date();
+      winner.history.push({ opponent: loser.name, result: "WIN", startTime: now, endTime: now });
+      loser.history.push({ opponent: winner.name, result: "LOSE", startTime: now, endTime: now });
+
+      winner.status = "idle"; winner.opponentSessionId = null; winner.deskNum = null;
+      loser.status = "idle"; loser.opponentSessionId = null; loser.deskNum = null;
+      delete matches[deskNum];
+      delete pendingWinConfirm[deskNum];
+
+      io.to(winner.id).emit("history", winner.history);
+      io.to(loser.id).emit("history", loser.history);
+
+      io.to(winner.id).emit("return_to_menu_battle");
+      io.to(loser.id).emit("return_to_menu_battle");
+    }
+  });
+
+  // --- 管理者・抽選・その他既存処理（略さず維持） ---
+  // ここから下は既存Server.jsと同様の内容を保持
   socket.on("admin_get_active_matches", () => {
     const list = Object.entries(matches).map(([deskNum, sessionIds]) => {
       const player1 = users.find(u => u.sessionId === sessionIds[0])?.name || "不明";
@@ -213,7 +251,6 @@ io.on("connection", (socket) => {
     socket.emit("admin_active_matches", list);
   });
 
-  // --- 管理者：対戦結果操作 ---
   socket.on("admin_report_win", ({ winnerSessionId, deskNum }) => {
     const match = matches[deskNum];
     if (!match || match.length !== 2) return;
@@ -281,7 +318,7 @@ io.on("connection", (socket) => {
     })));
   });
 
-  // --- 以下、管理者用ユーザー一覧・抽選・ログアウト処理（変更なし） ---
+  // --- 管理者用ユーザー一覧・抽選・ログアウト処理など既存のまま ---
   socket.on("admin_view_users", () => {
     const list = users.map(u => ({ id: u.id, name: u.name, history: u.history, loginTime: u.loginTime || null, status: u.status }));
     socket.emit("admin_user_list", list);
