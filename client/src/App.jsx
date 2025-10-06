@@ -41,8 +41,10 @@ function App() {
       const savedUser = localStorage.getItem("user");
       const savedAdmin = localStorage.getItem("adminMode");
       const savedTitles = localStorage.getItem("lotteryWinnerTitles");
+      const savedHistory = localStorage.getItem("history");
 
       if (savedTitles) setLotteryWinnerTitles(JSON.parse(savedTitles));
+      if (savedHistory) setHistory(JSON.parse(savedHistory));
       if (savedUser) {
         const u = JSON.parse(savedUser);
         setUser(u);
@@ -63,7 +65,17 @@ function App() {
       setSearching(u.status === "searching");
 
       // 履歴をマージ: サーバー履歴が空でも既存履歴を保持
-      setHistory((prev) => (u.history && u.history.length ? u.history : prev));
+      setHistory((prev) => {
+        const merged = [...prev];
+        if (u.history && u.history.length) {
+          u.history.forEach((h) => {
+            if (!merged.find((p) => p.endTime === h.endTime && p.opponent === h.opponent))
+              merged.push(h);
+          });
+        }
+        localStorage.setItem("history", JSON.stringify(merged));
+        return merged;
+      });
 
       setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
       setLotteryTitle("");
@@ -94,6 +106,7 @@ function App() {
       localStorage.removeItem("user");
       localStorage.removeItem("adminMode");
       localStorage.removeItem("lotteryWinnerTitles");
+      localStorage.removeItem("history");
       setLoggedIn(false);
       setAdminMode(false);
       setUser(null);
@@ -101,10 +114,10 @@ function App() {
       setOpponent(null);
       setDeskNum(null);
       setLotteryWinnerTitles([]);
+      setHistory([]);
       setName("");
     });
 
-    // --- 履歴更新: 既存履歴を保持しつつ最新履歴を反映 ---
     socket.on("history", (hist) => {
       setHistory((prev) => {
         if (!hist || hist.length === 0) return prev;
@@ -113,6 +126,7 @@ function App() {
           if (!merged.find((p) => p.endTime === h.endTime && p.opponent === h.opponent))
             merged.push(h);
         });
+        localStorage.setItem("history", JSON.stringify(merged));
         return merged;
       });
     });
@@ -153,35 +167,25 @@ function App() {
     socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
-    // --- 二段階勝利報告 ---
-    // 変更点: 敗北側にモーダルではなくネイティブ window.confirm で確認を出す
     socket.on("confirm_opponent_win", ({ deskNum: deskFromServer, winnerName }) => {
-      try {
-        // メッセージを勝利報告と同じ調子で出す
-        const msg = `${winnerName} の勝ちで登録します。よろしいですか？`;
-        const accepted = window.confirm(msg);
+      const msg = `${winnerName} の勝ちで登録します。よろしいですか？`;
+      const accepted = window.confirm(msg);
 
-        // サーバーへ結果を即送信（敗北側のレスポンス）
-        socket.emit("opponent_win_response", {
-          deskNum: deskFromServer,
-          accepted,
-        });
+      socket.emit("opponent_win_response", {
+        deskNum: deskFromServer,
+        accepted,
+      });
 
-        // ローカルUIの調整（サーバー側から最終通知が来るはずなので大きな処理はそちらに任せる）
-        setConfirmWinDialog(null);
-        setAwaitingConfirm(false);
+      setConfirmWinDialog(null);
+      setAwaitingConfirm(false);
 
-        if (accepted) {
-          // 敗北側の即時の見た目反映（サーバーからのhistory/opponent_win_finalizedでも更新される）
-          alert("敗北が登録されました");
-          setOpponent(null);
-          setDeskNum(null);
-          setSearching(false);
-        } else {
-          alert("敗北登録はキャンセルされました");
-        }
-      } catch (e) {
-        console.error("confirm_opponent_win handler error:", e);
+      if (accepted) {
+        alert("敗北が登録されました");
+        setOpponent(null);
+        setDeskNum(null);
+        setSearching(false);
+      } else {
+        alert("敗北登録はキャンセルされました");
       }
     });
 
@@ -206,6 +210,10 @@ function App() {
   }, [lotteryWinnerTitles]);
 
   useEffect(() => {
+    localStorage.setItem("history", JSON.stringify(history));
+  }, [history]);
+
+  useEffect(() => {
     if (!adminMode) return;
     const interval = setInterval(() => {
       socket.emit("admin_view_users");
@@ -222,67 +230,20 @@ function App() {
     socket.emit("login", { name: trimmedName });
   };
 
-  const handleAdminLogin = () => {
-    if (!adminPassword) return;
-    socket.emit("admin_login", { password: adminPassword });
-  };
-
-  const handleAdminLogout = () => {
-    if (!window.confirm("ログイン画面に戻りますか？")) return;
-    setAdminMode(false);
-    localStorage.removeItem("adminMode");
-  };
-
-  const handleFindOpponent = () => {
-    if (!matchEnabled) return;
-    setSearching(true);
-    socket.emit("find_opponent");
-  };
-
-  const handleCancelSearch = () => {
-    setSearching(false);
-    socket.emit("cancel_find");
-  };
-
-  // --- 勝利報告 ---
-  const handleWinReport = () => {
-    if (!deskNum) return;
-    if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
-    socket.emit("report_win_request");
-    setAwaitingConfirm(true);
-  };
-
-  const handleConfirmOpponentWin = (accepted) => {
-    // この関数は UI 側のモーダルを残している場合のクリック用（現状はネイティブ confirm を使用）
-    if (!confirmWinDialog) return;
-    socket.emit("opponent_win_response", {
-      deskNum: confirmWinDialog.deskNum,
-      accepted,
-    });
-    setConfirmWinDialog(null);
-    setAwaitingConfirm(false);
-    if (accepted) {
-      setOpponent(null);
-      setDeskNum(null);
-      setSearching(false);
-      alert("敗北が登録されました");
-    } else {
-      alert("敗北登録はキャンセルされました");
-    }
-  };
-
   const handleLogout = () => {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
     localStorage.removeItem("user");
     localStorage.removeItem("adminMode");
     localStorage.removeItem("lotteryWinnerTitles");
+    localStorage.removeItem("history");
     setUser(null);
     setLoggedIn(false);
     setSearching(false);
     setOpponent(null);
     setDeskNum(null);
     setLotteryWinnerTitles([]);
+    setHistory([]);
     setName("");
   };
 
