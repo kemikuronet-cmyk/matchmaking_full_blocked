@@ -202,10 +202,11 @@ function App() {
     socket.emit("cancel_find");
   };
 
+  // --- 修正: 勝利報告イベント名をサーバーに合わせる ---
   const handleWinReport = () => {
     if (!deskNum) return;
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
-    socket.emit("report_win_request", { deskNum });
+    socket.emit("report_win_request"); // 修正済み
     setAwaitingConfirm(true);
   };
 
