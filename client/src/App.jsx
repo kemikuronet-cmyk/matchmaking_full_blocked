@@ -137,23 +137,24 @@ function App() {
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
     // --- 勝利報告 二段階確認 ---
-    socket.on("confirm_opponent_win", () => {
+    socket.on("confirm_opponent_win", ({ winnerName }) => {
       const confirmLose = window.confirm(
-        "対戦相手の勝ちで登録します。よろしいですか？"
+        `${winnerName} が勝利報告しました。敗北として登録しますか？`
       );
       socket.emit("opponent_win_confirmed", { accepted: confirmLose });
       if (confirmLose) {
         alert("勝敗が登録されました");
+        setOpponent(null);
+        setDeskNum(null);
+        setSearching(false);
       } else {
-        alert("勝敗登録がキャンセルされました");
+        alert("勝敗登録はキャンセルされました");
       }
     });
 
     socket.on("win_report_cancelled", () => {
       alert("対戦相手がキャンセルしたため、勝利登録は中止されました");
-      setOpponent(null);
-      setDeskNum(null);
-      setSearching(false);
+      // 対戦画面はそのまま維持して再報告可能
     });
 
     return () => socket.off();
