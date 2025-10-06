@@ -21,6 +21,7 @@ let matchEnabled = false;
 let lotteryResults = []; // [{ title: 抽選名, winners: [sessionId,...] }]
 let autoLogoutHours = 12; // 初期値: 12時間
 let currentLotteryTitle = ""; // 現在設定されている抽選名
+let pendingWinConfirm = {}; // deskNum -> { requester: sessionId, confirmations: { sessionId: true/false } }
 
 // --- 卓番号割り当て ---
 function assignDeskNum() {
@@ -178,8 +179,8 @@ io.on("connection", (socket) => {
     }
   });
 
-  // --- 勝利報告（二段階承認） ---
-  socket.on("report_win", () => {
+  // --- 改修: 二段階勝利報告 ---
+  socket.on("report_win_request", () => {
     const user = users.find(u => u.id === socket.id);
     if (!user || !user.opponentSessionId || !user.deskNum) return;
 
@@ -187,46 +188,47 @@ io.on("connection", (socket) => {
     const opponent = users.find(u => u.sessionId === user.opponentSessionId);
     if (!opponent) return;
 
-    // 勝利報告ユーザーに待機表示
-    io.to(user.id).emit("waiting_opponent_confirm");
+    // 相手に確認ダイアログ
+    io.to(opponent.id).emit("confirm_opponent_win", { deskNum, winnerName: user.name });
 
-    // 相手に確認依頼
-    io.to(opponent.id).emit("confirm_opponent_win", {
-      deskNum,
-      winnerName: user.name,
-      winnerSessionId: user.sessionId
-    });
+    // pendingWinConfirm に記録
+    pendingWinConfirm[deskNum] = { requester: user.sessionId };
   });
 
-  socket.on("opponent_confirm", ({ deskNum, accepted, winnerSessionId }) => {
-    const match = matches[deskNum];
-    if (!match || match.length !== 2) return;
+  socket.on("opponent_win_response", ({ deskNum, accepted }) => {
+    const requesterSid = pendingWinConfirm[deskNum]?.requester;
+    if (!requesterSid) return;
 
-    const winner = users.find(u => u.sessionId === winnerSessionId);
-    const loser = users.find(u => u.sessionId !== winnerSessionId && match.includes(u.sessionId));
+    const winner = users.find(u => u.sessionId === requesterSid);
+    const loser = users.find(u => u.deskNum === deskNum && u.sessionId !== requesterSid);
     if (!winner || !loser) return;
 
     const now = new Date();
-
     if (accepted) {
       winner.history.push({ opponent: loser.name, result: "WIN", startTime: now, endTime: now });
       loser.history.push({ opponent: winner.name, result: "LOSE", startTime: now, endTime: now });
     }
 
+    // 両者をリセット
     winner.status = "idle"; winner.opponentSessionId = null; winner.deskNum = null;
     loser.status = "idle"; loser.opponentSessionId = null; loser.deskNum = null;
     delete matches[deskNum];
+    delete pendingWinConfirm[deskNum];
 
+    // 履歴と通知を送信
     io.to(winner.id).emit("history", winner.history);
     io.to(loser.id).emit("history", loser.history);
 
-    io.to(winner.id).emit("return_to_menu_battle");
-    io.to(loser.id).emit("return_to_menu_battle");
-
-    if (accepted) io.to(loser.id).emit("lose_reported", { deskNum });
+    if (accepted) {
+      io.to(loser.id).emit("opponent_win_finalized");
+      io.to(winner.id).emit("opponent_win_finalized");
+    } else {
+      io.to(winner.id).emit("opponent_win_cancelled");
+      io.to(loser.id).emit("opponent_win_cancelled");
+    }
   });
 
-  // --- 管理者・抽選・既存処理（略さず維持） ---
+  // --- 管理者・抽選・既存処理 ---
   socket.on("admin_get_active_matches", () => {
     const list = Object.entries(matches).map(([deskNum, sessionIds]) => {
       const player1 = users.find(u => u.sessionId === sessionIds[0])?.name || "不明";
@@ -381,21 +383,42 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("request_history", () => {
+  socket.on("logout", () => {
     const user = users.find(u => u.id === socket.id);
-    if (!user) return;
-    socket.emit("history", user.history || []);
+    if (user) {
+      if (user.opponentSessionId) {
+        const opponent = users.find(u => u.sessionId === user.opponentSessionId);
+        if (opponent) {
+          opponent.status = "idle";
+          opponent.opponentSessionId = null;
+          opponent.deskNum = null;
+          io.to(opponent.id).emit("return_to_menu_battle");
+        }
+        if (matches[user.deskNum]) delete matches[user.deskNum];
+      }
+      users = users.filter(u => u.id !== socket.id);
+    }
   });
 
-  socket.on("logout", () => {
-    const userIndex = users.findIndex(u => u.id === socket.id);
-    if (userIndex !== -1) users.splice(userIndex, 1);
-    const deskNum = Object.keys(matches).find(d => matches[d].includes(userIndex));
-    if (deskNum) delete matches[deskNum];
-    socket.emit("force_logout", { reason: "manual" });
+  socket.on("disconnect", () => {
+    const user = users.find(u => u.id === socket.id);
+    if (user) {
+      if (user.opponentSessionId) {
+        const opponent = users.find(u => u.sessionId === user.opponentSessionId);
+        if (opponent) {
+          opponent.status = "idle";
+          opponent.opponentSessionId = null;
+          opponent.deskNum = null;
+          io.to(opponent.id).emit("return_to_menu_battle");
+        }
+        if (matches[user.deskNum]) delete matches[user.deskNum];
+      }
+      users = users.filter(u => u.id !== socket.id);
+    }
+    console.log("切断:", socket.id);
   });
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
 });
