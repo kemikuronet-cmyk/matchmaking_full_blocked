@@ -32,7 +32,6 @@ function App() {
   const [lotteryHistory, setLotteryHistory] = useState([]);
   const [activeMatches, setActiveMatches] = useState([]);
   const [confirmWinDialog, setConfirmWinDialog] = useState(null);
-  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
 
   const loginAttempted = useRef(false);
 
@@ -83,7 +82,6 @@ function App() {
       setOpponent(null);
       setDeskNum(null);
       setSearching(false);
-      setAwaitingConfirm(false);
     });
 
     socket.on("force_logout", ({ reason }) => {
@@ -100,8 +98,6 @@ function App() {
       setDeskNum(null);
       setLotteryWinnerTitles([]);
       setName("");
-      setAwaitingConfirm(false);
-      setConfirmWinDialog(null);
     });
 
     socket.on("history", (hist) => setHistory(hist));
@@ -144,19 +140,6 @@ function App() {
     // --- 二段階勝利報告 ---
     socket.on("confirm_opponent_win", ({ deskNum, winnerName }) => {
       setConfirmWinDialog({ deskNum, winnerName });
-    });
-
-    socket.on("opponent_win_finalized", () => {
-      alert("勝敗が確定しました");
-      setOpponent(null);
-      setDeskNum(null);
-      setSearching(false);
-      setAwaitingConfirm(false);
-    });
-
-    socket.on("opponent_win_cancelled", () => {
-      alert("勝利報告がキャンセルされました");
-      setAwaitingConfirm(false);
     });
 
     return () => socket.off();
@@ -205,24 +188,23 @@ function App() {
     socket.emit("cancel_find");
   };
 
-  // --- 改修: 二段階勝利報告 ---
   const handleWinReport = () => {
-    if (!deskNum) return;
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
-
-    // A側: 勝利報告 → 確認待ち
-    socket.emit("report_win_request", { deskNum });
-    setAwaitingConfirm(true);
+    if (deskNum) socket.emit("report_win");
   };
 
   const handleConfirmOpponentWin = (accepted) => {
     if (!confirmWinDialog) return;
-    socket.emit("opponent_win_response", {
-      deskNum: confirmWinDialog.deskNum,
-      accepted,
-    });
+    socket.emit(`opponent_confirm_${confirmWinDialog.deskNum}`, { accepted });
     setConfirmWinDialog(null);
-    setAwaitingConfirm(false);
+    if (accepted) {
+      alert("敗北が登録されました");
+      setOpponent(null);
+      setDeskNum(null);
+      setSearching(false);
+    } else {
+      alert("敗北登録はキャンセルされました");
+    }
   };
 
   const handleLogout = () => {
@@ -238,8 +220,6 @@ function App() {
     setDeskNum(null);
     setLotteryWinnerTitles([]);
     setName("");
-    setAwaitingConfirm(false);
-    setConfirmWinDialog(null);
   };
 
   const handleToggleMatch = () =>
@@ -534,16 +514,9 @@ function App() {
         <div className="battle-screen">
           <h3>対戦相手: {opponent.name}</h3>
           <div>卓番号: {deskNum}</div>
-
-          {awaitingConfirm ? (
-            <div style={{ color: "yellow", marginTop: "10px" }}>
-              相手の確認を待っています…
-            </div>
-          ) : (
-            <button className="main-btn" onClick={handleWinReport}>
-              勝利報告
-            </button>
-          )}
+          <button className="main-btn" onClick={handleWinReport}>
+            勝利報告
+          </button>
         </div>
       ) : (
         <div className="menu-screen">
@@ -605,8 +578,8 @@ function App() {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
               <div className="bg-white p-4 rounded">
                 <p>{confirmWinDialog.winnerName} が勝利を報告しました。敗北として登録しますか？</p>
-                <button onClick={() => handleConfirmOpponentWin(true)}>OK</button>
-                <button onClick={() => handleConfirmOpponentWin(false)}>キャンセル</button>
+                <button onClick={() => handleConfirmOpponentWin(true)}>承認</button>
+                <button onClick={() => handleConfirmOpponentWin(false)}>拒否</button>
               </div>
             </div>
           )}
