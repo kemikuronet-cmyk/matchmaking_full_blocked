@@ -148,7 +148,7 @@ function App() {
     socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
-    // --- 敗北確認を window.confirm に変更 ---
+    // --- 敗北報告は window.confirm に変更 ---
     socket.on("confirm_opponent_win", ({ deskNum, winnerName }) => {
       const ok = window.confirm(`${winnerName} が勝利を報告しました。あなたの敗北として登録しますか？`);
       socket.emit("opponent_win_response", { deskNum, accepted: ok });
@@ -275,6 +275,7 @@ function App() {
 
   const displayHistory = history || [];
 
+  // --- JSX: 現行 App.jsx の return 内を丸ごと保持 ---
   return (
     <div className="app">
       {!loggedIn && !adminMode ? (
