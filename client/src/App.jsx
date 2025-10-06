@@ -523,7 +523,7 @@ function App() {
           )}
           {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
 
-                    {lotteryList && Array.isArray(lotteryList) && (
+          {lotteryList && Array.isArray(lotteryList) && (
             <div style={{ marginTop: "15px", textAlign: "center" }}>
               <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
                 {showLottery ? "抽選結果を閉じる" : "抽選結果"}
@@ -602,8 +602,8 @@ function App() {
               </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
