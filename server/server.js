@@ -187,15 +187,11 @@ io.on("connection", (socket) => {
     const opponent = users.find(u => u.sessionId === user.opponentSessionId);
     if (!opponent) return;
 
-    // 勝利者には「待機中」を表示
     io.to(user.id).emit("waiting_for_confirmation");
-
-    // 敗北者には確認ダイアログを送る
     io.to(opponent.id).emit("confirm_opponent_win", { deskNum, winnerName: user.name });
     pendingWinConfirm[deskNum] = { requester: user.sessionId };
   });
 
-  // --- 敗北側の承認/拒否レスポンス ---
   socket.on("opponent_win_response", ({ deskNum, accepted }) => {
     const requesterSid = pendingWinConfirm[deskNum]?.requester;
     if (!requesterSid) return;
@@ -209,21 +205,17 @@ io.on("connection", (socket) => {
       winner.history.push({ opponent: loser.name, result: "WIN", startTime: now, endTime: now });
       loser.history.push({ opponent: winner.name, result: "LOSE", startTime: now, endTime: now });
 
-      // 両者を idle に戻す
       winner.status = "idle"; winner.opponentSessionId = null; winner.deskNum = null;
       loser.status = "idle"; loser.opponentSessionId = null; loser.deskNum = null;
       delete matches[deskNum];
       delete pendingWinConfirm[deskNum];
 
-      // 履歴を更新してメニューに戻す
       io.to(winner.id).emit("history", winner.history);
       io.to(loser.id).emit("history", loser.history);
       io.to(winner.id).emit("return_to_menu_battle");
       io.to(loser.id).emit("return_to_menu_battle");
     } else {
-      // 拒否された場合 → 両者はマッチ継続
       delete pendingWinConfirm[deskNum];
-
       io.to(winner.id).emit("opponent_win_cancelled");
       io.to(loser.id).emit("opponent_win_cancelled");
     }
@@ -307,7 +299,13 @@ io.on("connection", (socket) => {
   });
 
   socket.on("admin_view_users", () => {
-    const list = users.map(u => ({ id: u.id, name: u.name, history: u.history, loginTime: u.loginTime || null, status: u.status }));
+    const list = users.map(u => ({
+      id: u.id,
+      name: u.name,
+      history: u.history,
+      loginTime: u.loginTime || null,
+      status: u.status
+    }));
     socket.emit("admin_user_list", list);
   });
 
