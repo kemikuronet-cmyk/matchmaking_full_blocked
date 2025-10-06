@@ -21,7 +21,6 @@ let matchEnabled = false;
 let lotteryResults = []; // [{ title: 抽選名, winners: [sessionId,...] }]
 let autoLogoutHours = 12; // 初期値: 12時間
 let currentLotteryTitle = ""; // 現在設定されている抽選名
-let pendingWinConfirm = {}; // deskNum -> { requester: sessionId, confirmations: { sessionId: true/false } }
 
 // --- 卓番号割り当て ---
 function assignDeskNum() {
@@ -188,41 +187,38 @@ io.on("connection", (socket) => {
     const opponent = users.find(u => u.sessionId === user.opponentSessionId);
     if (!opponent) return;
 
-    // 相手に確認ダイアログ
+    // 相手に確認依頼
     io.to(opponent.id).emit("confirm_opponent_win", { deskNum, winnerName: user.name });
 
-    // 相手の返答を待って承認後登録
+    // リクエストした側は「確認待ち」表示
+    io.to(user.id).emit("waiting_opponent_confirm");
+
+    // 相手の返答を待つ
     socket.once(`opponent_confirm_${deskNum}`, ({ accepted }) => {
       const now = new Date();
 
       if (accepted) {
-        // 勝敗登録
+        // 勝敗を登録
         user.history.push({ opponent: opponent.name, result: "WIN", startTime: now, endTime: now });
         opponent.history.push({ opponent: user.name, result: "LOSE", startTime: now, endTime: now });
       }
 
-      // 対戦終了状態を更新
+      // 両者ステータスをリセット
       user.status = "idle"; user.opponentSessionId = null; user.deskNum = null;
       opponent.status = "idle"; opponent.opponentSessionId = null; opponent.deskNum = null;
       delete matches[deskNum];
 
-      // 両者に履歴を送信
+      // 履歴更新
       io.to(user.id).emit("history", user.history);
       io.to(opponent.id).emit("history", opponent.history);
 
-      // 両者をメニューに戻す
+      // メニューに戻す
       io.to(user.id).emit("return_to_menu_battle");
       io.to(opponent.id).emit("return_to_menu_battle");
-
-      // 相手に敗北通知
-      if (accepted) io.to(opponent.id).emit("lose_reported", { deskNum });
     });
-
-    // リクエストした側はすぐメニューに戻す
-    socket.emit("return_to_menu_battle");
   });
 
-  // --- 管理者・抽選・既存処理 ---
+  // --- 管理者・抽選・既存処理（変更なし） ---
   socket.on("admin_get_active_matches", () => {
     const list = Object.entries(matches).map(([deskNum, sessionIds]) => {
       const player1 = users.find(u => u.sessionId === sessionIds[0])?.name || "不明";
