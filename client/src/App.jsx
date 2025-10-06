@@ -136,6 +136,23 @@ function App() {
     socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
+    // --- 勝敗通知追加 ---
+    socket.on("win_reported", () => {
+      setOpponent(null);
+      setDeskNum(null);
+      setSearching(false);
+      socket.emit("request_history");
+      alert("勝利が登録されました");
+    });
+
+    socket.on("lose_reported", ({ opponentName }) => {
+      setOpponent(null);
+      setDeskNum(null);
+      setSearching(false);
+      socket.emit("request_history");
+      alert(`「${opponentName}」に敗北しました`);
+    });
+
     return () => socket.off();
   }, [user]);
 
@@ -183,11 +200,7 @@ function App() {
   };
 
   const handleWinReport = () => {
-    if (!opponent) return;
-    const confirmWin = window.confirm(
-      `対戦相手: ${opponent.name}\nあなたの勝利で登録しますか？`
-    );
-    if (!confirmWin) return;
+    if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
     socket.emit("report_win");
     setOpponent(null);
     setDeskNum(null);
@@ -276,14 +289,14 @@ function App() {
         <div className="admin-screen">
           <div className="header">管理者画面</div>
 
-          {/* --- マッチング --- */}
+          {/* マッチング */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleToggleMatch}>
               {matchEnabled ? "マッチング中" : "マッチング開始"}
             </button>
           </div>
 
-          {/* --- 抽選 --- */}
+          {/* 抽選 */}
           <div className="admin-section">
             <h3>抽選</h3>
             <label>
@@ -338,7 +351,7 @@ function App() {
             </ul>
           </div>
 
-          {/* --- 抽選履歴 --- */}
+          {/* 抽選履歴 */}
           <div className="admin-section">
             <h3>抽選履歴</h3>
             {lotteryHistory.length === 0 ? (
@@ -356,12 +369,14 @@ function App() {
                     <tr key={idx}>
                       <td>{l.title}</td>
                       <td>
-                        {(Array.isArray(l.winners) ? l.winners : []).map((w, i) => (
-                          <span key={i}>
-                            {w.name}
-                            {i < l.winners.length - 1 ? ", " : ""}
-                          </span>
-                        ))}
+                        {(Array.isArray(l.winners) ? l.winners : []).map(
+                          (w, i) => (
+                            <span key={i}>
+                              {w.name}
+                              {i < l.winners.length - 1 ? ", " : ""}
+                            </span>
+                          )
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -370,7 +385,7 @@ function App() {
             )}
           </div>
 
-          {/* --- 自動ログアウト設定 --- */}
+          {/* 自動ログアウト設定 */}
           <div className="admin-section">
             <h3>自動ログアウト設定</h3>
             <label>
@@ -387,7 +402,7 @@ function App() {
             </button>
           </div>
 
-          {/* --- ログイン中ユーザー --- */}
+          {/* ログイン中ユーザー */}
           <div className="admin-section">
             <h3>ログイン中のユーザー</h3>
             <table style={{ color: "white", borderCollapse: "collapse" }}>
@@ -439,7 +454,7 @@ function App() {
             </button>
           </div>
 
-          {/* --- 対戦中の部屋一覧 --- */}
+          {/* 対戦中の部屋一覧 */}
           <div className="admin-section">
             <h3>対戦中の部屋一覧</h3>
             {activeMatches.length === 0 ? (
@@ -491,7 +506,7 @@ function App() {
             )}
           </div>
 
-          {/* --- 管理者ログアウト --- */}
+          {/* 管理者ログアウト */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleAdminLogout}>
               管理者画面からログアウト
@@ -520,6 +535,7 @@ function App() {
             </button>
           )}
           {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
+
           {lotteryList && Array.isArray(lotteryList) && (
             <div style={{ marginTop: "15px", textAlign: "center" }}>
               <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
@@ -560,6 +576,7 @@ function App() {
               )}
             </div>
           )}
+
           <div style={{ marginTop: lotteryList.length > 0 ? "15px" : "0px" }}>
             <div className="history-list">
               <h4>対戦履歴</h4>
@@ -590,6 +607,7 @@ function App() {
                 </tbody>
               </table>
             </div>
+
             <div style={{ textAlign: "center", marginTop: "10px" }}>
               <button className="main-btn" onClick={handleLogout}>
                 ログアウト
