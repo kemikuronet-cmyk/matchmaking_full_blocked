@@ -523,8 +523,8 @@ function App() {
           )}
           {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
 
-          {lotteryList && Array.isArray(lotteryList) && (
-            <div style={{ marginTop: "15px" }}>
+                    {lotteryList && Array.isArray(lotteryList) && (
+            <div style={{ marginTop: "15px", textAlign: "center" }}>
               <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
                 {showLottery ? "抽選結果を閉じる" : "抽選結果"}
               </button>
@@ -595,12 +595,13 @@ function App() {
               </table>
             </div>
 
-            {/* --- ログアウトボタンを履歴の下に移動 --- */}
-            <button className="main-btn" onClick={handleLogout} style={{ marginTop: "10px" }}>
-              ログアウト
-            </button>
+            {/* --- ログアウトボタンを履歴の下に配置 & 中央寄せ --- */}
+            <div style={{ textAlign: "center", marginTop: "10px" }}>
+              <button className="main-btn" onClick={handleLogout}>
+                ログアウト
+              </button>
+            </div>
           </div>
-        </div>
       )}
     </div>
   );
