@@ -21,7 +21,7 @@ let matchEnabled = false;
 let lotteryResults = []; // [{ title: 抽選名, winners: [sessionId,...] }]
 let autoLogoutHours = 12; // 初期値: 12時間
 let currentLotteryTitle = ""; // 現在設定されている抽選名
-let pendingWinConfirm = {}; // deskNum -> { requester: sessionId, confirmations: { sessionId: true/false } }
+let pendingWinConfirm = {}; // deskNum -> { requester: sessionId }
 
 // --- 卓番号割り当て ---
 function assignDeskNum() {
@@ -114,7 +114,6 @@ io.on("connection", (socket) => {
     else socket.emit("admin_fail");
   });
 
-  // --- 管理者：自動ログアウト設定 ---
   socket.on("admin_set_auto_logout", ({ hours }) => {
     if (typeof hours === "number" && hours > 0) {
       autoLogoutHours = hours;
@@ -179,7 +178,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // --- 改修: 二段階勝利報告 ---
+  // --- 二段階勝利報告 ---
   socket.on("report_win_request", () => {
     const user = users.find(u => u.id === socket.id);
     if (!user || !user.opponentSessionId || !user.deskNum) return;
@@ -188,13 +187,11 @@ io.on("connection", (socket) => {
     const opponent = users.find(u => u.sessionId === user.opponentSessionId);
     if (!opponent) return;
 
-    // 相手に確認ダイアログ
     io.to(opponent.id).emit("confirm_opponent_win", { deskNum, winnerName: user.name });
-
-    // pendingWinConfirm に記録
     pendingWinConfirm[deskNum] = { requester: user.sessionId };
   });
 
+  // --- 承認/拒否レスポンスを受信 ---
   socket.on("opponent_win_response", ({ deskNum, accepted }) => {
     const requesterSid = pendingWinConfirm[deskNum]?.requester;
     if (!requesterSid) return;
@@ -209,13 +206,11 @@ io.on("connection", (socket) => {
       loser.history.push({ opponent: winner.name, result: "LOSE", startTime: now, endTime: now });
     }
 
-    // 両者をリセット
     winner.status = "idle"; winner.opponentSessionId = null; winner.deskNum = null;
     loser.status = "idle"; loser.opponentSessionId = null; loser.deskNum = null;
     delete matches[deskNum];
     delete pendingWinConfirm[deskNum];
 
-    // 履歴と通知を送信
     io.to(winner.id).emit("history", winner.history);
     io.to(loser.id).emit("history", loser.history);
 
