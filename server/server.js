@@ -179,7 +179,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // --- 勝利報告（ユーザー） ---
+  // --- 勝利報告（二段階承認） ---
   socket.on("report_win", () => {
     const user = users.find(u => u.id === socket.id);
     if (!user || !user.opponentSessionId || !user.deskNum) return;
@@ -188,36 +188,41 @@ io.on("connection", (socket) => {
     const opponent = users.find(u => u.sessionId === user.opponentSessionId);
     if (!opponent) return;
 
-    // 相手にダイアログを出す
-    io.to(opponent.id).emit("confirm_opponent_win");
+    // 相手に確認ダイアログ
+    io.to(opponent.id).emit("confirm_opponent_win", { deskNum, winnerName: user.name });
 
-    // 自分側はそのままメニューに戻す
-    user.status = "idle";
-    user.opponentSessionId = null;
-    user.deskNum = null;
+    // 相手の返答を待って承認後登録
+    socket.once(`opponent_confirm_${deskNum}`, ({ accepted }) => {
+      const now = new Date();
+
+      if (accepted) {
+        // 勝敗登録
+        user.history.push({ opponent: opponent.name, result: "WIN", startTime: now, endTime: now });
+        opponent.history.push({ opponent: user.name, result: "LOSE", startTime: now, endTime: now });
+      }
+
+      // 対戦終了状態を更新
+      user.status = "idle"; user.opponentSessionId = null; user.deskNum = null;
+      opponent.status = "idle"; opponent.opponentSessionId = null; opponent.deskNum = null;
+      delete matches[deskNum];
+
+      // 両者に履歴を送信
+      io.to(user.id).emit("history", user.history);
+      io.to(opponent.id).emit("history", opponent.history);
+
+      // 両者をメニューに戻す
+      io.to(user.id).emit("return_to_menu_battle");
+      io.to(opponent.id).emit("return_to_menu_battle");
+
+      // 相手に敗北通知
+      if (accepted) io.to(opponent.id).emit("lose_reported", { deskNum });
+    });
+
+    // リクエストした側はすぐメニューに戻す
     socket.emit("return_to_menu_battle");
-
-    // 勝敗登録は管理者・サーバー側で承認後行うか、
-    // サーバーで自動承認して即登録する場合は以下の処理を追加
-    const now = new Date();
-    user.history.push({ opponent: opponent.name, result: "WIN", startTime: now, endTime: now });
-    opponent.history.push({ opponent: user.name, result: "LOSE", startTime: now, endTime: now });
-
-    // 対戦終了状態に更新
-    delete matches[deskNum];
-    opponent.status = "idle";
-    opponent.opponentSessionId = null;
-    opponent.deskNum = null;
-
-    // 履歴を双方に送信
-    socket.emit("history", user.history);
-    io.to(opponent.id).emit("history", opponent.history);
-
-    // 相手もメニューに戻す
-    io.to(opponent.id).emit("return_to_menu_battle");
   });
 
-  // --- 管理者・抽選・その他既存処理 ---
+  // --- 管理者・抽選・既存処理 --- （省略せず現行のまま保持）
   socket.on("admin_get_active_matches", () => {
     const list = Object.entries(matches).map(([deskNum, sessionIds]) => {
       const player1 = users.find(u => u.sessionId === sessionIds[0])?.name || "不明";
@@ -226,6 +231,7 @@ io.on("connection", (socket) => {
     });
     socket.emit("admin_active_matches", list);
   });
+
 
   socket.on("admin_report_win", ({ winnerSessionId, deskNum }) => {
     const match = matches[deskNum];
