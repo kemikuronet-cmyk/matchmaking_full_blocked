@@ -32,6 +32,7 @@ function App() {
   const [lotteryHistory, setLotteryHistory] = useState([]);
   const [activeMatches, setActiveMatches] = useState([]);
   const [confirmWinDialog, setConfirmWinDialog] = useState(null);
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
 
   const loginAttempted = useRef(false);
 
@@ -142,6 +143,19 @@ function App() {
       setConfirmWinDialog({ deskNum, winnerName });
     });
 
+    socket.on("opponent_win_finalized", () => {
+      alert("勝敗が確定しました");
+      setOpponent(null);
+      setDeskNum(null);
+      setSearching(false);
+      setAwaitingConfirm(false);
+    });
+
+    socket.on("opponent_win_cancelled", () => {
+      alert("勝利報告がキャンセルされました");
+      setAwaitingConfirm(false);
+    });
+
     return () => socket.off();
   }, [user]);
 
@@ -189,19 +203,25 @@ function App() {
   };
 
   const handleWinReport = () => {
+    if (!deskNum) return;
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
-    if (deskNum) socket.emit("report_win");
+    socket.emit("report_win_request", { deskNum });
+    setAwaitingConfirm(true);
   };
 
   const handleConfirmOpponentWin = (accepted) => {
     if (!confirmWinDialog) return;
-    socket.emit(`opponent_confirm_${confirmWinDialog.deskNum}`, { accepted });
+    socket.emit("opponent_win_response", {
+      deskNum: confirmWinDialog.deskNum,
+      accepted,
+    });
     setConfirmWinDialog(null);
+    setAwaitingConfirm(false);
     if (accepted) {
-      alert("敗北が登録されました");
       setOpponent(null);
       setDeskNum(null);
       setSearching(false);
+      alert("敗北が登録されました");
     } else {
       alert("敗北登録はキャンセルされました");
     }
@@ -514,9 +534,16 @@ function App() {
         <div className="battle-screen">
           <h3>対戦相手: {opponent.name}</h3>
           <div>卓番号: {deskNum}</div>
-          <button className="main-btn" onClick={handleWinReport}>
-            勝利報告
-          </button>
+
+          {awaitingConfirm ? (
+            <div style={{ color: "yellow", marginTop: "10px" }}>
+              相手の確認を待っています…
+            </div>
+          ) : (
+            <button className="main-btn" onClick={handleWinReport}>
+              勝利報告
+            </button>
+          )}
         </div>
       ) : (
         <div className="menu-screen">
