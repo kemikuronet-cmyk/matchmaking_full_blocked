@@ -140,7 +140,23 @@ function App() {
 
     // --- 二段階勝利報告 ---
     socket.on("confirm_opponent_win", ({ deskNum, winnerName }) => {
-      setConfirmWinDialog({ deskNum, winnerName });
+      // 敗北側にもOK/キャンセルで確認する
+      const confirmResult = window.confirm(
+        `${winnerName} の勝ちで登録します。よろしいですか？`
+      );
+      socket.emit("opponent_win_response", {
+        deskNum,
+        accepted: confirmResult,
+      });
+      setAwaitingConfirm(false);
+      if (confirmResult) {
+        setOpponent(null);
+        setDeskNum(null);
+        setSearching(false);
+        alert("敗北が登録されました");
+      } else {
+        alert("敗北登録はキャンセルされました");
+      }
     });
 
     socket.on("opponent_win_finalized", () => {
@@ -202,30 +218,11 @@ function App() {
     socket.emit("cancel_find");
   };
 
-  // --- 修正: 勝利報告イベント名をサーバーに合わせる ---
   const handleWinReport = () => {
     if (!deskNum) return;
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
-    socket.emit("report_win_request"); // 修正済み
+    socket.emit("report_win_request");
     setAwaitingConfirm(true);
-  };
-
-  const handleConfirmOpponentWin = (accepted) => {
-    if (!confirmWinDialog) return;
-    socket.emit("opponent_win_response", {
-      deskNum: confirmWinDialog.deskNum,
-      accepted,
-    });
-    setConfirmWinDialog(null);
-    setAwaitingConfirm(false);
-    if (accepted) {
-      setOpponent(null);
-      setDeskNum(null);
-      setSearching(false);
-      alert("敗北が登録されました");
-    } else {
-      alert("敗北登録はキャンセルされました");
-    }
   };
 
   const handleLogout = () => {
