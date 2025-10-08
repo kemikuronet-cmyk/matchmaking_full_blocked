@@ -221,6 +221,15 @@ io.on("connection", (socket) => {
     }
   });
 
+  // --- 新規追加: 現在の抽選リストを取得 ---
+  socket.on("get_lottery_list", () => {
+    const listForUsers = lotteryResults.map(l => ({
+      title: l.title,
+      winners: winnerNamesFromSessionIds(l.winners)
+    }));
+    socket.emit("update_lottery_list", { list: listForUsers, title: currentLotteryTitle });
+  });
+
   // --- 管理者・抽選・既存処理 ---
   socket.on("admin_get_active_matches", () => {
     const list = Object.entries(matches).map(([deskNum, sessionIds]) => {
