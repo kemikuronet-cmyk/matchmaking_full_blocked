@@ -1,4 +1,3 @@
-// client/src/App.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
@@ -32,92 +31,39 @@ function App() {
   const [autoLogoutHours, setAutoLogoutHours] = useState(12);
   const [lotteryHistory, setLotteryHistory] = useState([]);
   const [activeMatches, setActiveMatches] = useState([]);
-  const [confirmWinDialog, setConfirmWinDialog] = useState(null);
-  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
 
   const loginAttempted = useRef(false);
 
-  // -------------------------------
-  // 初期化: localStorageから復元
-  // -------------------------------
+  // --- ローカル保存復元 ---
   useEffect(() => {
     if (!loginAttempted.current) {
       const savedUser = localStorage.getItem("user");
       const savedAdmin = localStorage.getItem("adminMode");
       const savedTitles = localStorage.getItem("lotteryWinnerTitles");
-      const savedHistory = localStorage.getItem("history");
-      const savedLotteryHistory = localStorage.getItem("lotteryHistory");
-      const savedLotteryList = localStorage.getItem("lotteryList");
+      const savedHistory = localStorage.getItem("lotteryHistory");
 
       if (savedTitles) setLotteryWinnerTitles(JSON.parse(savedTitles));
-      if (savedHistory) {
-        try {
-          setHistory(JSON.parse(savedHistory));
-        } catch (e) {
-          console.error("history parse error", e);
-        }
-      }
-      if (savedLotteryHistory) {
-        try {
-          setLotteryHistory(JSON.parse(savedLotteryHistory));
-        } catch (e) {
-          console.error("lotteryHistory parse error", e);
-        }
-      }
-      if (savedLotteryList) {
-        try {
-          setLotteryList(JSON.parse(savedLotteryList));
-        } catch (e) {
-          console.error("lotteryList parse error", e);
-        }
-      }
+      if (savedHistory) setLotteryHistory(JSON.parse(savedHistory));
 
       if (savedUser) {
-        try {
-          const u = JSON.parse(savedUser);
-          setUser(u);
-          setLoggedIn(true);
-          setName(u.name);
-          socket.emit("login", { name: u.name, sessionId: u.sessionId });
-        } catch (e) {
-          console.error("user parse error", e);
-        }
+        const u = JSON.parse(savedUser);
+        setUser(u);
+        setLoggedIn(true);
+        setName(u.name);
+        socket.emit("login", { name: u.name, sessionId: u.sessionId });
       }
       if (savedAdmin === "true") setAdminMode(true);
       loginAttempted.current = true;
     }
-  }, []);
 
-  // -------------------------------
-  // Socket.io イベント登録
-  // -------------------------------
-  useEffect(() => {
+    // --- Socket.ioイベント ---
     socket.on("login_ok", (u) => {
       setUser(u);
       setLoggedIn(true);
       setName(u.name);
-      try {
-        localStorage.setItem("user", JSON.stringify(u));
-      } catch (e) {}
-      setSearching((prev) => (prev === true ? true : u.status === "searching"));
-      setHistory((prev) => {
-        const merged = [...(Array.isArray(prev) ? prev : [])];
-        if (Array.isArray(u.history) && u.history.length > 0) {
-          u.history.forEach((h) => {
-            const exists = merged.find(
-              (p) =>
-                p.endTime === h.endTime &&
-                p.opponent === h.opponent &&
-                p.result === h.result
-            );
-            if (!exists) merged.push(h);
-          });
-        }
-        try {
-          localStorage.setItem("history", JSON.stringify(merged));
-        } catch (e) {}
-        return merged;
-      });
+      localStorage.setItem("user", JSON.stringify(u));
+      setSearching(u.status === "searching");
+      setHistory(u.history || []);
       setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
       setLotteryTitle("");
       if (u.currentOpponent) {
@@ -133,14 +79,12 @@ function App() {
       setOpponent(opponent);
       setDeskNum(deskNum);
       setSearching(false);
-      setAwaitingConfirm(false);
     });
 
     socket.on("return_to_menu_battle", () => {
       setOpponent(null);
       setDeskNum(null);
       setSearching(false);
-      setAwaitingConfirm(false);
     });
 
     socket.on("force_logout", ({ reason }) => {
@@ -149,9 +93,7 @@ function App() {
       localStorage.removeItem("user");
       localStorage.removeItem("adminMode");
       localStorage.removeItem("lotteryWinnerTitles");
-      localStorage.removeItem("history");
       localStorage.removeItem("lotteryHistory");
-      localStorage.removeItem("lotteryList");
       setLoggedIn(false);
       setAdminMode(false);
       setUser(null);
@@ -159,42 +101,21 @@ function App() {
       setOpponent(null);
       setDeskNum(null);
       setLotteryWinnerTitles([]);
-      setHistory([]);
       setLotteryHistory([]);
-      setLotteryList([]);
       setName("");
     });
 
-    socket.on("history", (hist) => {
-      setHistory((prev) => {
-        if (!hist || !Array.isArray(hist) || hist.length === 0) return prev;
-        const merged = [...(Array.isArray(prev) ? prev : [])];
-        hist.forEach((h) => {
-          const exists = merged.find(
-            (p) =>
-              p.endTime === h.endTime &&
-              p.opponent === h.opponent &&
-              p.result === h.result
-          );
-          if (!exists) merged.push(h);
-        });
-        try {
-          localStorage.setItem("history", JSON.stringify(merged));
-        } catch (e) {}
-        return merged;
-      });
-    });
-
+    socket.on("history", (hist) => setHistory(hist));
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
+
     socket.on("admin_ok", () => {
       setAdminMode(true);
-      try {
-        localStorage.setItem("adminMode", "true");
-      } catch (e) {}
+      localStorage.setItem("adminMode", "true");
       socket.emit("admin_get_auto_logout");
       socket.emit("admin_get_lottery_history");
       socket.emit("admin_get_active_matches");
     });
+
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
     socket.on("admin_user_list", (list) => setUsersList(list));
     socket.on("admin_draw_result", (res) => {
@@ -202,6 +123,7 @@ function App() {
       setDrawResult(res?.winners || []);
       socket.emit("admin_get_lottery_history");
     });
+
     socket.on("admin_current_auto_logout", ({ hours }) =>
       setAutoLogoutHours(hours)
     );
@@ -209,125 +131,73 @@ function App() {
       setAutoLogoutHours(hours);
       alert(`自動ログアウト時間を ${hours} 時間に設定しました`);
     });
+
     socket.on("lottery_winner", ({ title }) => {
       setLotteryWinnerTitles((prev) => {
         if (!prev.includes(title)) return [...prev, title];
         return prev;
       });
     });
+
     socket.on("update_lottery_list", ({ list }) => {
       if (!list || !Array.isArray(list)) return;
       setLotteryList(list);
       setShowLottery(true);
-      try {
-        localStorage.setItem("lotteryList", JSON.stringify(list));
-      } catch (e) {}
     });
+
     socket.on("admin_lottery_history", (list) => {
       setLotteryHistory(list);
-      try {
-        localStorage.setItem("lotteryHistory", JSON.stringify(list));
-      } catch (e) {}
+      localStorage.setItem("lotteryHistory", JSON.stringify(list));
     });
+
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
-    socket.on("confirm_opponent_win", ({ deskNum: deskFromServer, winnerName }) => {
-      try {
-        const msg = `${winnerName} の勝ちで登録します。よろしいですか？`;
-        const accepted = window.confirm(msg);
-        socket.emit("opponent_win_response", {
-          deskNum: deskFromServer,
-          accepted,
-        });
-        setConfirmWinDialog(null);
-        setAwaitingConfirm(false);
-        if (accepted) {
-          alert("敗北が登録されました");
-          setOpponent(null);
-          setDeskNum(null);
-          setSearching(false);
-        } else {
-          alert("敗北登録はキャンセルされました");
-        }
-      } catch (e) {
-        console.error("confirm_opponent_win handler error:", e);
+    // --- 勝利報告のダブルチェック機能 ---
+    socket.on("confirm_opponent_win", () => {
+      const confirmLose = window.confirm(
+        "対戦相手の勝ちで登録します。よろしいですか？"
+      );
+      socket.emit("opponent_win_confirmed", { accepted: confirmLose });
+      if (confirmLose) {
+        alert("勝敗が登録されました");
+      } else {
+        alert("勝敗登録がキャンセルされました");
       }
     });
 
-    socket.on("opponent_win_finalized", () => {
-      alert("勝敗が確定しました");
+    socket.on("win_report_cancelled", () => {
+      alert("対戦相手がキャンセルしたため、勝利登録は中止されました");
       setOpponent(null);
       setDeskNum(null);
       setSearching(false);
-      setAwaitingConfirm(false);
     });
 
-    socket.on("opponent_win_cancelled", () => {
-      alert("勝利報告がキャンセルされました");
-      setAwaitingConfirm(false);
-    });
+    return () => socket.off();
+  }, [user]);
 
-    return () => {
-      socket.off("login_ok");
-      socket.off("matched");
-      socket.off("return_to_menu_battle");
-      socket.off("force_logout");
-      socket.off("history");
-      socket.off("match_status");
-      socket.off("admin_ok");
-      socket.off("admin_fail");
-      socket.off("admin_user_list");
-      socket.off("admin_draw_result");
-      socket.off("admin_current_auto_logout");
-      socket.off("admin_set_auto_logout_ok");
-      socket.off("lottery_winner");
-      socket.off("update_lottery_list");
-      socket.off("admin_lottery_history");
-      socket.off("admin_active_matches");
-      socket.off("confirm_opponent_win");
-      socket.off("opponent_win_finalized");
-      socket.off("opponent_win_cancelled");
-    };
-  }, []);
-
-  // -------------------------------
-  // LocalStorage更新
-  // -------------------------------
+  // --- 永続化 ---
   useEffect(() => {
-    try {
-      localStorage.setItem("lotteryWinnerTitles", JSON.stringify(lotteryWinnerTitles));
-    } catch (e) {}
+    localStorage.setItem(
+      "lotteryWinnerTitles",
+      JSON.stringify(lotteryWinnerTitles)
+    );
   }, [lotteryWinnerTitles]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem("lotteryList", JSON.stringify(lotteryList));
-    } catch (e) {}
-  }, [lotteryList]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("lotteryHistory", JSON.stringify(lotteryHistory));
-    } catch (e) {}
+    localStorage.setItem("lotteryHistory", JSON.stringify(lotteryHistory));
   }, [lotteryHistory]);
 
-  // -------------------------------
-  // 管理者監視ループ
-  // -------------------------------
   useEffect(() => {
     if (!adminMode) return;
     const interval = setInterval(() => {
       socket.emit("admin_view_users");
       socket.emit("admin_get_lottery_history");
       socket.emit("admin_get_active_matches");
-      socket.emit("get_lottery_list");
     }, 3000);
     return () => clearInterval(interval);
   }, [adminMode]);
 
-  // -------------------------------
-  // Handlers
-  // -------------------------------
+  // --- 各種ハンドラ ---
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
@@ -342,16 +212,12 @@ function App() {
   const handleAdminLogout = () => {
     if (!window.confirm("ログイン画面に戻りますか？")) return;
     setAdminMode(false);
-    try {
-      localStorage.removeItem("adminMode");
-    } catch (e) {}
+    localStorage.removeItem("adminMode");
   };
 
   const handleFindOpponent = () => {
     if (!matchEnabled) return;
     setSearching(true);
-    setOpponent(null);
-    setDeskNum(null);
     socket.emit("find_opponent");
   };
 
@@ -361,54 +227,27 @@ function App() {
   };
 
   const handleWinReport = () => {
-    if (!deskNum) return;
-    const ok = window.confirm("あなたの勝ちで登録します。よろしいですか？");
-    if (!ok) return;
-    setAwaitingConfirm(true);
+    if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
     socket.emit("report_win_request");
-  };
-
-  const handleConfirmOpponentWin = (accepted) => {
-    if (!confirmWinDialog) return;
-    socket.emit("opponent_win_response", {
-      deskNum: confirmWinDialog.deskNum,
-      accepted,
-    });
-    setConfirmWinDialog(null);
-    setAwaitingConfirm(false);
-    if (accepted) {
-      setOpponent(null);
-      setDeskNum(null);
-      setSearching(false);
-      alert("敗北が登録されました");
-    } else {
-      alert("敗北登録はキャンセルされました");
-    }
   };
 
   const handleLogout = () => {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
-    try {
-      localStorage.removeItem("user");
-      localStorage.removeItem("adminMode");
-      localStorage.removeItem("lotteryWinnerTitles");
-      localStorage.removeItem("history");
-      localStorage.removeItem("lotteryHistory");
-      localStorage.removeItem("lotteryList");
-    } catch (e) {}
+    localStorage.removeItem("user");
+    localStorage.removeItem("adminMode");
+    localStorage.removeItem("lotteryWinnerTitles");
+    localStorage.removeItem("lotteryHistory");
     setUser(null);
     setLoggedIn(false);
     setSearching(false);
     setOpponent(null);
     setDeskNum(null);
     setLotteryWinnerTitles([]);
-    setHistory([]);
     setLotteryHistory([]);
-    setLotteryList([]);
     setName("");
   };
-
+  // --- 続きのハンドラ ---
   const handleToggleMatch = () =>
     socket.emit("admin_toggle_match", { enable: !matchEnabled });
 
@@ -445,20 +284,38 @@ function App() {
     socket.emit("admin_report_both_lose", { deskNum });
   };
 
-  // --- 新規追加: 管理者画面から抽選履歴を削除 ---
+  // --- 新規: 管理者画面から抽選履歴を削除（個別） ---
+  const handleDeleteLotteryEntry = (index) => {
+    const entry = lotteryHistory[index];
+    if (!entry) return;
+    if (!window.confirm(`抽選「${entry.title}」の履歴を削除しますか？`)) return;
+    // ローカル状態から削除
+    setLotteryHistory((prev) => {
+      const next = [...prev];
+      next.splice(index, 1);
+      try {
+        localStorage.setItem("lotteryHistory", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+    // サーバー側で全体データも削除できるなら通知（サーバーで対応が必要）
+    socket.emit("admin_delete_lottery_history", { title: entry.title, index });
+  };
+
+  // --- 新規: 管理者画面から抽選履歴を削除（全削除） ---
   const handleClearLotteryHistory = () => {
     if (!window.confirm("抽選履歴をすべて削除しますか？")) return;
     setLotteryHistory([]);
     try {
       localStorage.removeItem("lotteryHistory");
     } catch (e) {}
-    socket.emit("admin_clear_lottery_history"); // サーバー側でも削除イベントを送る
+    socket.emit("admin_clear_lottery_history");
   };
 
   const displayHistory = history || [];
 
   // -------------------------------
-  // ここから JSX
+  // JSX（元の構造・文言を保持しつつ、抽選履歴に削除UIを追加）
   // -------------------------------
   return (
     <div className="app">
@@ -560,31 +417,46 @@ function App() {
             {lotteryHistory.length === 0 ? (
               <p style={{ color: "lightgray" }}>まだ抽選履歴はありません</p>
             ) : (
-              <table style={{ color: "white", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th>抽選名</th>
-                    <th>当選者</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lotteryHistory.map((l, idx) => (
-                    <tr key={idx}>
-                      <td>{l.title}</td>
-                      <td>
-                        {(Array.isArray(l.winners) ? l.winners : []).map(
-                          (w, i) => (
-                            <span key={i}>
-                              {w.name}
-                              {i < l.winners.length - 1 ? ", " : ""}
-                            </span>
-                          )
-                        )}
-                      </td>
+              <>
+                <table style={{ color: "white", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th>抽選名</th>
+                      <th>当選者</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {lotteryHistory.map((l, idx) => (
+                      <tr key={idx}>
+                        <td>{l.title}</td>
+                        <td>
+                          {(Array.isArray(l.winners) ? l.winners : []).map(
+                            (w, i) => (
+                              <span key={i}>
+                                {w.name}
+                                {i < l.winners.length - 1 ? ", " : ""}
+                              </span>
+                            )
+                          )}
+                          {/* 個別削除ボタン（行内） */}
+                          <button
+                            className="main-btn"
+                            style={{ marginLeft: "8px" }}
+                            onClick={() => handleDeleteLotteryEntry(idx)}
+                          >
+                            削除
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ marginTop: "10px" }}>
+                  <button className="main-btn" onClick={handleClearLotteryHistory}>
+                    抽選履歴をすべて削除
+                  </button>
+                </div>
+              </>
             )}
           </div>
 
@@ -720,16 +592,9 @@ function App() {
         <div className="battle-screen">
           <h3>対戦相手: {opponent.name}</h3>
           <div>卓番号: {deskNum}</div>
-
-          {awaitingConfirm ? (
-            <div style={{ color: "yellow", marginTop: "10px" }}>
-              相手の確認を待っています…
-            </div>
-          ) : (
-            <button className="main-btn" onClick={handleWinReport}>
-              勝利報告
-            </button>
-          )}
+          <button className="main-btn" onClick={handleWinReport}>
+            勝利報告
+          </button>
         </div>
       ) : (
         <div className="menu-screen">
@@ -784,17 +649,6 @@ function App() {
                   )}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* confirmWinDialog modal retained for compatibility but we use native confirm for loser */}
-          {confirmWinDialog && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-              <div className="bg-white p-4 rounded">
-                <p>{confirmWinDialog.winnerName} が勝利を報告しました。敗北として登録しますか？</p>
-                <button onClick={() => handleConfirmOpponentWin(true)}>承認</button>
-                <button onClick={() => handleConfirmOpponentWin(false)}>拒否</button>
-              </div>
             </div>
           )}
 
