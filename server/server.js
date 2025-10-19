@@ -6,6 +6,7 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 
+// --- パス設定 ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -13,25 +14,25 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- Reactビルド静的配信 ---
-app.use(express.static(path.join(__dirname, "client/build")));
+// --- Reactビルド静的配信 (Vite対応) ---
+app.use(express.static(path.join(__dirname, "client/dist")));
 app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "client/build", "index.html"));
+  res.sendFile(path.join(__dirname, "client/dist", "index.html"));
 });
 
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 // === メモリ管理 ===
-let users = []; // { id: socketId, name, sessionId, status, loginTime, history }
+let users = []; // { id, name, sessionId, status, loginTime, history }
 let desks = {}; // { deskNum: { p1, p2, reported } }
 let matchEnabled = false;
 let adminSocket = null;
-let adminPassword = "admin1234"; // 任意
+let adminPassword = "admin1234"; // 任意に変更可
 let autoLogoutHours = 12;
 let lotteryHistory = [];
 
-// === ユーティリティ ===
+// === ユーティリティ関数 ===
 const now = () => new Date().toISOString();
 const generateDeskNum = () => {
   let n;
@@ -72,7 +73,7 @@ const broadcastActiveMatches = () => {
   }
 };
 
-// === Socket.io接続 ===
+// === Socket.io ===
 io.on("connection", (socket) => {
   console.log("✅ Connected:", socket.id);
 
@@ -134,7 +135,7 @@ io.on("connection", (socket) => {
     updateAdminUserList();
   });
 
-  // --- 勝利報告（ダブルチェック） ---
+  // --- 勝利報告フロー ---
   socket.on("report_win_request", () => {
     const user = findUser(socket.id);
     if (!user) return;
@@ -210,11 +211,14 @@ io.on("connection", (socket) => {
     io.emit("match_status", { enabled: matchEnabled });
   });
 
+  // --- 管理者 勝利登録 ---
   socket.on("admin_report_win", ({ winnerSessionId, deskNum }) => {
     const match = desks[deskNum];
     if (!match) return;
-    const winner = match.p1.sessionId === winnerSessionId ? match.p1 : match.p2;
-    const loser = match.p1.sessionId === winnerSessionId ? match.p2 : match.p1;
+    const winner =
+      match.p1.sessionId === winnerSessionId ? match.p1 : match.p2;
+    const loser =
+      match.p1.sessionId === winnerSessionId ? match.p2 : match.p1;
 
     winner.history.push({ opponent: loser.name, result: "WIN", endTime: now() });
     loser.history.push({ opponent: winner.name, result: "LOSE", endTime: now() });
@@ -231,6 +235,7 @@ io.on("connection", (socket) => {
     const match = desks[deskNum];
     if (!match) return;
     const { p1, p2 } = match;
+
     p1.history.push({ opponent: p2.name, result: "LOSE", endTime: now() });
     p2.history.push({ opponent: p1.name, result: "LOSE", endTime: now() });
 
@@ -246,7 +251,8 @@ io.on("connection", (socket) => {
   socket.on("admin_draw_lots", ({ count, minBattles, minLoginMinutes }) => {
     const eligible = users.filter((u) => {
       const battles = u.history?.length || 0;
-      const loginMinutes = (Date.now() - new Date(u.loginTime).getTime()) / 60000;
+      const loginMinutes =
+        (Date.now() - new Date(u.loginTime).getTime()) / 60000;
       return battles >= minBattles && loginMinutes >= minLoginMinutes;
     });
     const shuffled = eligible.sort(() => Math.random() - 0.5);
@@ -283,7 +289,7 @@ io.on("connection", (socket) => {
     socket.emit("admin_current_auto_logout", { hours: autoLogoutHours });
   });
 
-  // --- 管理者によるユーザー強制ログアウト ---
+  // --- 管理者による強制ログアウト ---
   socket.on("admin_logout_user", ({ userId }) => {
     const target = users.find((u) => u.id === userId);
     if (target) io.to(userId).emit("force_logout", { reason: "admin" });
@@ -309,6 +315,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// === サーバ起動 ===
+// === 起動 ===
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
