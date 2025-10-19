@@ -14,17 +14,17 @@ app.use(cors());
 app.use(express.json());
 
 // --- Reactビルド静的配信 ---
-app.use(express.static(path.join(__dirname, "client/dist")));
+app.use(express.static(path.join(__dirname, "../client/dist")));
 app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "client/dist", "index.html"));
+  res.sendFile(path.join(__dirname, "../client/dist", "index.html"));
 });
 
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 // === メモリ管理 ===
-let users = []; // { id, name, sessionId, status, loginTime, history }
-let desks = {}; // { deskNum: { p1, p2, reported } }
+let users = [];
+let desks = {};
 let matchEnabled = false;
 let adminSocket = null;
 let adminPassword = "admin1234";
@@ -35,11 +35,12 @@ let lotteryHistory = [];
 const now = () => new Date().toISOString();
 const generateDeskNum = () => {
   let n;
-  do { n = Math.floor(Math.random() * 9000) + 1000; } while (desks[n]);
+  do {
+    n = Math.floor(Math.random() * 9000) + 1000;
+  } while (desks[n]);
   return n;
 };
 const findUser = (socketId) => users.find((u) => u.id === socketId);
-
 const updateAdminUserList = () => {
   if (adminSocket) {
     adminSocket.emit(
@@ -50,12 +51,11 @@ const updateAdminUserList = () => {
         sessionId: u.sessionId,
         status: u.status,
         loginTime: u.loginTime,
-        history: u.history || [],
+        history: u.history,
       }))
     );
   }
 };
-
 const broadcastActiveMatches = () => {
   if (adminSocket) {
     const active = Object.keys(desks).map((deskNum) => {
@@ -112,7 +112,9 @@ io.on("connection", (socket) => {
     if (!user || !matchEnabled) return;
     user.status = "searching";
 
-    const opponent = users.find((u) => u.status === "searching" && u.id !== socket.id);
+    const opponent = users.find(
+      (u) => u.status === "searching" && u.id !== socket.id
+    );
     if (opponent) {
       const deskNum = generateDeskNum();
       desks[deskNum] = { p1: user, p2: opponent, reported: null };
@@ -191,8 +193,6 @@ io.on("connection", (socket) => {
     if (password === adminPassword) {
       adminSocket = socket;
       socket.emit("admin_ok");
-
-      // 管理者がログインした直後に各情報を送信
       updateAdminUserList();
       socket.emit("match_status", { enabled: matchEnabled });
       socket.emit("admin_current_auto_logout", { hours: autoLogoutHours });
@@ -283,6 +283,7 @@ io.on("connection", (socket) => {
     socket.emit("admin_current_auto_logout", { hours: autoLogoutHours });
   });
 
+  // --- 管理者によるユーザー強制ログアウト ---
   socket.on("admin_logout_user", ({ userId }) => {
     const target = users.find((u) => u.id === userId);
     if (target) io.to(userId).emit("force_logout", { reason: "admin" });
@@ -309,5 +310,5 @@ io.on("connection", (socket) => {
 });
 
 // === サーバ起動 ===
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
