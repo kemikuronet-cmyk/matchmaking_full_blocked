@@ -1,4 +1,4 @@
-// server/server.js
+// server.js
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -13,11 +13,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// === React静的ファイル配信（client/distをルートに設定） ===
-const distPath = path.join(__dirname, "..", "client", "dist");
-app.use(express.static(distPath));
+// --- Reactビルド静的配信 (client/dist に対応) ---
+app.use(express.static(path.join(__dirname, "../client/dist")));
 app.get("*", (req, res) => {
-  res.sendFile(path.join(distPath, "index.html"));
+  res.sendFile(path.join(__dirname, "../client/dist/index.html"));
 });
 
 const server = createServer(app);
@@ -73,7 +72,7 @@ const broadcastActiveMatches = () => {
   }
 };
 
-// === Socket.io接続 ===
+// === Socket.io 接続 ===
 io.on("connection", (socket) => {
   console.log("✅ Connected:", socket.id);
 
@@ -113,9 +112,7 @@ io.on("connection", (socket) => {
     if (!user || !matchEnabled) return;
     user.status = "searching";
 
-    const opponent = users.find(
-      (u) => u.status === "searching" && u.id !== socket.id
-    );
+    const opponent = users.find((u) => u.status === "searching" && u.id !== socket.id);
     if (opponent) {
       const deskNum = generateDeskNum();
       desks[deskNum] = { p1: user, p2: opponent, reported: null };
@@ -170,16 +167,8 @@ io.on("connection", (socket) => {
       return;
     }
 
-    reporter.history.push({
-      opponent: loser.name,
-      result: "WIN",
-      endTime: now(),
-    });
-    loser.history.push({
-      opponent: reporter.name,
-      result: "LOSE",
-      endTime: now(),
-    });
+    reporter.history.push({ opponent: loser.name, result: "WIN", endTime: now() });
+    loser.history.push({ opponent: reporter.name, result: "LOSE", endTime: now() });
 
     io.to(reporter.id).emit("return_to_menu_battle");
     io.to(loser.id).emit("return_to_menu_battle");
@@ -274,7 +263,7 @@ io.on("connection", (socket) => {
     io.emit("admin_lottery_history", lotteryHistory);
   });
 
-  // --- 自動ログアウト設定 ---
+  // --- 自動ログアウト ---
   socket.on("admin_set_auto_logout", ({ hours }) => {
     autoLogoutHours = hours;
     socket.emit("admin_set_auto_logout_ok", { hours });
@@ -284,7 +273,7 @@ io.on("connection", (socket) => {
     socket.emit("admin_current_auto_logout", { hours: autoLogoutHours });
   });
 
-  // --- 管理者によるユーザー強制ログアウト ---
+  // --- ユーザー強制ログアウト ---
   socket.on("admin_logout_user", ({ userId }) => {
     const target = users.find((u) => u.id === userId);
     if (target) io.to(userId).emit("force_logout", { reason: "admin" });
@@ -311,5 +300,5 @@ io.on("connection", (socket) => {
 });
 
 // === サーバ起動 ===
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
