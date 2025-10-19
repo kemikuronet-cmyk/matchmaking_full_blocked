@@ -242,20 +242,28 @@ io.on("connection", (socket) => {
     updateAdminUserList();
   });
 
-  // --- 抽選機能 ---
-  socket.on("admin_draw_lots", ({ count, minBattles, minLoginMinutes }) => {
+  // --- 抽選機能（修正版） ---
+  socket.on("admin_draw_lots", ({ count, minBattles, minLoginMinutes, title }) => {
     const eligible = users.filter((u) => {
       const battles = u.history?.length || 0;
       const loginMinutes = (Date.now() - new Date(u.loginTime).getTime()) / 60000;
       return battles >= minBattles && loginMinutes >= minLoginMinutes;
     });
+
     const shuffled = eligible.sort(() => Math.random() - 0.5);
     const winners = shuffled.slice(0, count);
-    const title = `抽選${lotteryHistory.length + 1}`;
-    const entry = { title, winners };
+
+    const finalTitle = title && title.trim() ? title : `抽選${lotteryHistory.length + 1}`;
+    const entry = { title: finalTitle, winners };
     lotteryHistory.push(entry);
 
-    socket.emit("admin_draw_result", { title, winners });
+    socket.emit("admin_draw_result", { title: finalTitle, winners });
+
+    // ⭐ 当選者へ通知
+    winners.forEach((w) => {
+      io.to(w.id).emit("lottery_win_announcement", { title: finalTitle });
+    });
+
     io.emit("update_lottery_list", { list: lotteryHistory });
   });
 
