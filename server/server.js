@@ -186,10 +186,7 @@ io.on("connection", (socket) => {
 
   socket.on("cancel_find", () => {
     const user = findUserBySocket(socket.id);
-    if (user) {
-      // 検索キャンセル → idle に戻す
-      if (user.status !== "in_battle") user.status = "idle";
-    }
+    if (user) user.status = "idle";
     sendUserListTo();
   });
 
