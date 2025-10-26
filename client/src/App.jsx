@@ -1,3 +1,4 @@
+// client/src/App.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
@@ -34,22 +35,25 @@ function App() {
 
   const loginAttempted = useRef(false);
 
-  // --- ローカル保存復元 ---
+  // --- 初期復元（user/history/lottery） ---
   useEffect(() => {
     if (!loginAttempted.current) {
       const savedUser = localStorage.getItem("user");
       const savedAdmin = localStorage.getItem("adminMode");
       const savedTitles = localStorage.getItem("lotteryWinnerTitles");
-      const savedHistory = localStorage.getItem("lotteryHistory");
+      const savedHistory = localStorage.getItem("history"); // 履歴用キー
+      const savedLotteryHistory = localStorage.getItem("lotteryHistory");
 
       if (savedTitles) setLotteryWinnerTitles(JSON.parse(savedTitles));
-      if (savedHistory) setLotteryHistory(JSON.parse(savedHistory));
+      if (savedHistory) setHistory(JSON.parse(savedHistory));
+      if (savedLotteryHistory) setLotteryHistory(JSON.parse(savedLotteryHistory));
 
       if (savedUser) {
         const u = JSON.parse(savedUser);
         setUser(u);
         setLoggedIn(true);
         setName(u.name);
+        // サーバー側で sessionId を使って再接続できるよう送る
         socket.emit("login", { name: u.name, sessionId: u.sessionId });
       }
       if (savedAdmin === "true") setAdminMode(true);
@@ -58,14 +62,36 @@ function App() {
 
     // --- Socket.ioイベント ---
     socket.on("login_ok", (u) => {
-      setUser(u);
+      // サーバーから来た履歴とローカル保存の履歴を比較して適切なものを使う
+      const localHist = (() => {
+        try {
+          return JSON.parse(localStorage.getItem("history") || "[]");
+        } catch (e) {
+          return [];
+        }
+      })();
+
+      const serverHist = Array.isArray(u.history) ? u.history : [];
+      // より長い方（より多くの記録がある方）を採用する（片方が欠けているケースに対応）
+      const finalHistory = serverHist.length >= localHist.length ? serverHist : localHist;
+
+      const lotteryListFromServer = Array.isArray(u.lotteryList) ? u.lotteryList : [];
+
+      const outUser = {
+        ...u,
+      };
+
+      setUser(outUser);
       setLoggedIn(true);
       setName(u.name);
-      localStorage.setItem("user", JSON.stringify(u));
       setSearching(u.status === "searching");
-      setHistory(u.history || []);
-      setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
+      setHistory(finalHistory);
+      setLotteryList(lotteryListFromServer);
       setLotteryTitle("");
+      // 保存（localStorage）
+      localStorage.setItem("user", JSON.stringify(outUser));
+      localStorage.setItem("history", JSON.stringify(finalHistory));
+
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
         setDeskNum(u.deskNum);
@@ -94,6 +120,7 @@ function App() {
       localStorage.removeItem("adminMode");
       localStorage.removeItem("lotteryWinnerTitles");
       localStorage.removeItem("lotteryHistory");
+      localStorage.removeItem("history");
       setLoggedIn(false);
       setAdminMode(false);
       setUser(null);
@@ -102,10 +129,19 @@ function App() {
       setDeskNum(null);
       setLotteryWinnerTitles([]);
       setLotteryHistory([]);
+      setHistory([]);
       setName("");
     });
 
-    socket.on("history", (hist) => setHistory(hist));
+    // サーバーから直接履歴が来たら即反映＆永続化
+    socket.on("history", (hist) => {
+      const h = Array.isArray(hist) ? hist : [];
+      setHistory(h);
+      try {
+        localStorage.setItem("history", JSON.stringify(h));
+      } catch (e) {}
+    });
+
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
 
     socket.on("admin_ok", () => {
@@ -132,6 +168,11 @@ function App() {
       alert(`自動ログアウト時間を ${hours} 時間に設定しました`);
     });
 
+    // 管理者が抽選名を設定してOKを返したとき（クライアント側で表示更新）
+    socket.on("admin_set_lottery_title_ok", ({ title }) => {
+      if (title) setLotteryTitle(title);
+    });
+
     socket.on("lottery_winner", ({ title }) => {
       setLotteryWinnerTitles((prev) => {
         if (!prev.includes(title)) return [...prev, title];
@@ -147,15 +188,17 @@ function App() {
 
     socket.on("admin_lottery_history", (list) => {
       setLotteryHistory(list);
-      localStorage.setItem("lotteryHistory", JSON.stringify(list));
+      try {
+        localStorage.setItem("lotteryHistory", JSON.stringify(list));
+      } catch (e) {}
     });
 
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
     // --- 勝利報告のダブルチェック機能 ---
-    socket.on("confirm_opponent_win", () => {
+    socket.on("confirm_opponent_win", ({ deskNum: dn, winnerName } = {}) => {
       const confirmLose = window.confirm(
-        "対戦相手の勝ちで登録します。よろしいですか？"
+        (winnerName ? `${winnerName} の勝ちで` : "対戦相手の勝ちで") + "登録します。よろしいですか？"
       );
       socket.emit("opponent_win_confirmed", { accepted: confirmLose });
       if (confirmLose) {
@@ -175,18 +218,30 @@ function App() {
     return () => socket.off();
   }, [user]);
 
-  // --- 永続化 ---
+  // --- history を localStorage に永続化 ---
   useEffect(() => {
-    localStorage.setItem(
-      "lotteryWinnerTitles",
-      JSON.stringify(lotteryWinnerTitles)
-    );
+    try {
+      localStorage.setItem("history", JSON.stringify(history));
+    } catch (e) {}
+  }, [history]);
+
+  // --- lottery 永続化 ---
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "lotteryWinnerTitles",
+        JSON.stringify(lotteryWinnerTitles)
+      );
+    } catch (e) {}
   }, [lotteryWinnerTitles]);
 
   useEffect(() => {
-    localStorage.setItem("lotteryHistory", JSON.stringify(lotteryHistory));
+    try {
+      localStorage.setItem("lotteryHistory", JSON.stringify(lotteryHistory));
+    } catch (e) {}
   }, [lotteryHistory]);
 
+  // 管理者モード時の定期更新
   useEffect(() => {
     if (!adminMode) return;
     const interval = setInterval(() => {
@@ -238,6 +293,7 @@ function App() {
     localStorage.removeItem("adminMode");
     localStorage.removeItem("lotteryWinnerTitles");
     localStorage.removeItem("lotteryHistory");
+    localStorage.removeItem("history");
     setUser(null);
     setLoggedIn(false);
     setSearching(false);
@@ -245,6 +301,7 @@ function App() {
     setDeskNum(null);
     setLotteryWinnerTitles([]);
     setLotteryHistory([]);
+    setHistory([]);
     setName("");
   };
   // --- 続きのハンドラ ---
@@ -256,6 +313,7 @@ function App() {
       count: drawCount,
       minBattles: minMatches,
       minLoginMinutes: minLoginHours * 60,
+      title: lotteryTitle, // 可能ならタイトルも送る
     });
   };
 
@@ -315,7 +373,7 @@ function App() {
   const displayHistory = history || [];
 
   // -------------------------------
-  // JSX（元の構造・文言を保持しつつ、抽選履歴に削除UIを追加）
+  // JSX（元の構造・文言を保持）
   // -------------------------------
   return (
     <div className="app">
