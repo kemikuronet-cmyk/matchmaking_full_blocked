@@ -72,7 +72,7 @@ function App() {
       })();
 
       const serverHist = Array.isArray(u.history) ? u.history : [];
-      // より長い方（より多くの記録がある方）を採用する（片方が欠けているケースに対応）
+      // より長い方（より多くの記録がある方）を採用（片方が欠けているケースに対応）
       const finalHistory = serverHist.length >= localHist.length ? serverHist : localHist;
 
       const lotteryListFromServer = Array.isArray(u.lotteryList) ? u.lotteryList : [];
@@ -89,8 +89,19 @@ function App() {
       setLotteryList(lotteryListFromServer);
       setLotteryTitle("");
       // 保存（localStorage）
-      localStorage.setItem("user", JSON.stringify(outUser));
-      localStorage.setItem("history", JSON.stringify(finalHistory));
+      try {
+        localStorage.setItem("user", JSON.stringify(outUser));
+        localStorage.setItem("history", JSON.stringify(finalHistory));
+      } catch (e) {}
+
+      // --- ここでサーバにローカルの最終履歴を同期（サーバが受け取れば in-memory にも反映される） ---
+      try {
+        socket.emit("sync_history", {
+          sessionId: outUser.sessionId,
+          history: finalHistory,
+          recentOpponents: outUser.recentOpponents || [],
+        });
+      } catch (e) {}
 
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
@@ -223,6 +234,11 @@ function App() {
     try {
       localStorage.setItem("history", JSON.stringify(history));
     } catch (e) {}
+    // 履歴が変わったらサーバへも差分同期（サーバ側が受け取れば in-memory を更新）
+    try {
+      const sessionId = user?.sessionId || (JSON.parse(localStorage.getItem("user") || "{}").sessionId);
+      socket.emit("history_update", { sessionId, history });
+    } catch (e) {}
   }, [history]);
 
   // --- lottery 永続化 ---
@@ -256,7 +272,25 @@ function App() {
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
-    socket.emit("login", { name: trimmedName });
+
+    // 既に local に sessionId がある場合は送る（ページリロードや復元時）
+    const saved = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("user") || "{}");
+      } catch (e) {
+        return {};
+      }
+    })();
+    const sessionId = saved?.sessionId || undefined;
+    const recentOpponents = saved?.recentOpponents || [];
+
+    // 送信時にクライアント側の履歴も渡しておく（サーバが受け取れば反映できる）
+    socket.emit("login", {
+      name: trimmedName,
+      sessionId,
+      history: history,
+      recentOpponents,
+    });
   };
 
   const handleAdminLogin = () => {
