@@ -2,6 +2,7 @@
   "name": "matchmaking-server",
   "version": "1.0.0",
   "private": false,
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
