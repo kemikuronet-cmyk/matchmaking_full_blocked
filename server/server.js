@@ -1,5 +1,4 @@
-// ✅ Server.js 完全統合版（前半）
-// 現行機能 + 勝敗数保持 + 状態復元 + 自動リセット機能
+// ✅ Server.js 完全統合版（全機能保持 + 永続化 + 状態復元対応）
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -19,9 +18,7 @@ app.use(express.json());
 const CLIENT_DIST = path.join(__dirname, "../client/dist");
 if (fs.existsSync(CLIENT_DIST)) {
   app.use(express.static(CLIENT_DIST));
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(CLIENT_DIST, "index.html"));
-  });
+  app.get("*", (req, res) => res.sendFile(path.join(CLIENT_DIST, "index.html")));
 } else {
   app.get("/", (req, res) => res.send("Client dist not found. Please build client."));
 }
@@ -30,16 +27,40 @@ const server = createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 // -----------------
+// 永続化ヘルパー
+// -----------------
+const STATE_FILE = path.join(__dirname, "state.json");
+function saveState() {
+  fs.writeFileSync(STATE_FILE, JSON.stringify({ users, desks, lotteryHistory, currentLotteryTitle }, null, 2));
+}
+function loadState() {
+  if (fs.existsSync(STATE_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(STATE_FILE));
+      users = data.users || [];
+      desks = data.desks || {};
+      lotteryHistory = data.lotteryHistory || [];
+      currentLotteryTitle = data.currentLotteryTitle || "";
+      console.log("✅ 状態復元済み");
+    } catch {
+      console.error("❌ 状態復元失敗: JSONパースエラー");
+    }
+  }
+}
+
+// -----------------
 // in-memory state
 // -----------------
-let users = []; // { id, name, sessionId, status, loginTime, history:[], recentOpponents:[], wins, losses, totalBattles }
-let desks = {}; // deskNum -> { p1, p2, reported }
+let users = [];
+let desks = {};
 let matchEnabled = false;
 let adminSocket = null;
 let adminPassword = "admin1234";
 let autoLogoutHours = 12;
 let lotteryHistory = [];
 let currentLotteryTitle = "";
+
+loadState(); // 起動時に復元
 
 // -----------------
 // helpers
@@ -107,20 +128,24 @@ io.on("connection", (socket) => {
       }
       user.id = socket.id;
 
-      // ★修正ポイント: in_battle状態が維持されていた場合、相手がいなければidleに戻す
-      if (user.status === "in_battle") {
-        const stillInDesk = Object.values(desks).some(d => d.p1?.sessionId === user.sessionId || d.p2?.sessionId === user.sessionId);
-        if (!stillInDesk) user.status = "idle";
+      // 対戦卓復帰チェック
+      const activeDesk = Object.entries(desks).find(([_, d]) =>
+        d.p1?.sessionId === user.sessionId || d.p2?.sessionId === user.sessionId
+      );
+      if (activeDesk) {
+        const [deskNum, desk] = activeDesk;
+        user.status = "in_battle";
+        const opponent = desk.p1.sessionId === user.sessionId ? desk.p2 : desk.p1;
+        socket.emit("matched", { opponent: { id: opponent.id, name: opponent.name }, deskNum });
+      } else {
+        user.status = "idle";
       }
-
     } else {
       user = { id: socket.id, name, sessionId: sessionId || socket.id, status: "idle", loginTime: now(), history: [], recentOpponents: [], wins: 0, losses: 0, totalBattles: 0 };
       users.push(user);
     }
 
-    // ★修正ポイント: ログイン時に勝敗情報を再計算
-    if (user.history?.length > 0) calculateWinsLosses(user);
-
+    calculateWinsLosses(user);
     socket.emit("login_ok", {
       ...user,
       history: user.history,
@@ -132,6 +157,7 @@ io.on("connection", (socket) => {
 
     sendUserListTo(socket);
     broadcastActiveMatchesToAdmin();
+    saveState();
   });
 
   // --- logout ---
@@ -139,6 +165,7 @@ io.on("connection", (socket) => {
     users = users.filter(u => u.id !== socket.id);
     sendUserListTo();
     broadcastActiveMatchesToAdmin();
+    saveState();
   });
 
   // --- find opponent ---
@@ -159,15 +186,14 @@ io.on("connection", (socket) => {
       desks[deskNum] = { p1: user, p2: candidate, reported: null };
       user.status = candidate.status = "in_battle";
 
-      user.recentOpponents = user.recentOpponents || [];
-      candidate.recentOpponents = candidate.recentOpponents || [];
-      if (!user.recentOpponents.includes(candidate.sessionId)) user.recentOpponents.push(candidate.sessionId);
-      if (!candidate.recentOpponents.includes(user.sessionId)) candidate.recentOpponents.push(user.sessionId);
+      user.recentOpponents.push(candidate.sessionId);
+      candidate.recentOpponents.push(user.sessionId);
 
       io.to(user.id).emit("matched", { opponent: { id: candidate.id, name: candidate.name }, deskNum });
       io.to(candidate.id).emit("matched", { opponent: { id: user.id, name: user.name }, deskNum });
 
       broadcastActiveMatchesToAdmin();
+      saveState();
     }
     sendUserListTo();
   });
@@ -176,7 +202,9 @@ io.on("connection", (socket) => {
     const user = findUserBySocket(socket.id);
     if (user && user.status !== "in_battle") user.status = "idle";
     sendUserListTo();
+    saveState();
   });
+
   // --- 勝敗報告 ---
   socket.on("report_win_request", ({ deskNum }) => {
     const desk = desks[deskNum];
@@ -194,7 +222,6 @@ io.on("connection", (socket) => {
       reporter.history.push({ opponent: loser.name, result: "WIN", time: now() });
       loser.history.push({ opponent: reporter.name, result: "LOSE", time: now() });
 
-      // ★修正ポイント: 勝敗再集計
       calculateWinsLosses(reporter);
       calculateWinsLosses(loser);
 
@@ -207,6 +234,7 @@ io.on("connection", (socket) => {
 
       broadcastActiveMatchesToAdmin();
       sendUserListTo();
+      saveState();
     }
   });
 
@@ -267,9 +295,8 @@ io.on("connection", (socket) => {
         lotteryHistory = [];
         io.emit("lottery_update", []);
         break;
-      default:
-        console.warn("Unknown admin command:", type);
     }
+    saveState();
   });
 
   // --- 接続解除 ---
@@ -279,6 +306,7 @@ io.on("connection", (socket) => {
     if (socket.id === adminSocket?.id) adminSocket = null;
     sendUserListTo();
     broadcastActiveMatchesToAdmin();
+    saveState();
   });
 });
 
@@ -286,6 +314,4 @@ io.on("connection", (socket) => {
 // サーバー起動
 // -----------------
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-});
+server.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
