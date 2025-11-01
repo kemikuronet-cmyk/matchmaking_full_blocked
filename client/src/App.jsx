@@ -263,10 +263,10 @@ function App() {
     });
   };
 
-  const handleAdminLogin = () => {
-    if (!adminPassword) return;
-    socket.emit("admin_login", { password: adminPassword });
-  };
+const handleAdminLogin = () => {
+  if (!adminPassword) return;
+  socket.emit("admin_login", adminPassword);
+};
 
   const handleAdminLogout = () => {
     if (!window.confirm("ログイン画面に戻りますか？")) return;
