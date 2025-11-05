@@ -41,7 +41,7 @@ function App() {
       const savedUser = localStorage.getItem("user");
       const savedAdmin = localStorage.getItem("adminMode");
       const savedTitles = localStorage.getItem("lotteryWinnerTitles");
-      const savedHistory = localStorage.getItem("history"); // 履歴用キー
+      const savedHistory = localStorage.getItem("history");
       const savedLotteryHistory = localStorage.getItem("lotteryHistory");
 
       if (savedTitles) setLotteryWinnerTitles(JSON.parse(savedTitles));
@@ -53,7 +53,6 @@ function App() {
         setUser(u);
         setLoggedIn(true);
         setName(u.name);
-        // サーバー側で sessionId を使って再接続できるよう送る
         socket.emit("login", { name: u.name, sessionId: u.sessionId });
       }
       if (savedAdmin === "true") setAdminMode(true);
@@ -62,7 +61,6 @@ function App() {
 
     // --- Socket.ioイベント ---
     socket.on("login_ok", (u) => {
-      // サーバーから来た履歴とローカル保存の履歴を比較して適切なものを使う
       const localHist = (() => {
         try {
           return JSON.parse(localStorage.getItem("history") || "[]");
@@ -72,15 +70,10 @@ function App() {
       })();
 
       const serverHist = Array.isArray(u.history) ? u.history : [];
-      // より長い方（より多くの記録がある方）を採用（片方が欠けているケースに対応）
       const finalHistory = serverHist.length >= localHist.length ? serverHist : localHist;
-
       const lotteryListFromServer = Array.isArray(u.lotteryList) ? u.lotteryList : [];
 
-      const outUser = {
-        ...u,
-      };
-
+      const outUser = { ...u };
       setUser(outUser);
       setLoggedIn(true);
       setName(u.name);
@@ -88,13 +81,13 @@ function App() {
       setHistory(finalHistory);
       setLotteryList(lotteryListFromServer);
       setLotteryTitle("");
-      // 保存（localStorage）
+
       try {
         localStorage.setItem("user", JSON.stringify(outUser));
         localStorage.setItem("history", JSON.stringify(finalHistory));
       } catch (e) {}
 
-      // --- ここでサーバにローカルの最終履歴を同期（サーバが受け取れば in-memory にも反映される） ---
+      // --- サーバにローカル履歴同期 ---
       try {
         socket.emit("sync_history", {
           sessionId: outUser.sessionId,
@@ -144,7 +137,6 @@ function App() {
       setName("");
     });
 
-    // サーバーから直接履歴が来たら即反映＆永続化
     socket.on("history", (hist) => {
       const h = Array.isArray(hist) ? hist : [];
       setHistory(h);
@@ -234,7 +226,7 @@ function App() {
     try {
       localStorage.setItem("history", JSON.stringify(history));
     } catch (e) {}
-    // 履歴が変わったらサーバへも差分同期（サーバ側が受け取れば in-memory を更新）
+    // 履歴が変わったらサーバへも差分同期
     try {
       const sessionId = user?.sessionId || (JSON.parse(localStorage.getItem("user") || "{}").sessionId);
       socket.emit("history_update", { sessionId, history });
@@ -273,7 +265,6 @@ function App() {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
 
-    // 既に local に sessionId がある場合は送る（ページリロードや復元時）
     const saved = (() => {
       try {
         return JSON.parse(localStorage.getItem("user") || "{}");
@@ -284,7 +275,6 @@ function App() {
     const sessionId = saved?.sessionId || undefined;
     const recentOpponents = saved?.recentOpponents || [];
 
-    // 送信時にクライアント側の履歴も渡しておく（サーバが受け取れば反映できる）
     socket.emit("login", {
       name: trimmedName,
       sessionId,
@@ -338,7 +328,8 @@ function App() {
     setHistory([]);
     setName("");
   };
-  // --- 続きのハンドラ ---
+
+  // --- 続きの管理者操作ハンドラ ---
   const handleToggleMatch = () =>
     socket.emit("admin_toggle_match", { enable: !matchEnabled });
 
@@ -347,7 +338,7 @@ function App() {
       count: drawCount,
       minBattles: minMatches,
       minLoginMinutes: minLoginHours * 60,
-      title: lotteryTitle, // 可能ならタイトルも送る
+      title: lotteryTitle,
     });
   };
 
@@ -381,7 +372,6 @@ function App() {
     const entry = lotteryHistory[index];
     if (!entry) return;
     if (!window.confirm(`抽選「${entry.title}」の履歴を削除しますか？`)) return;
-    // ローカル状態から削除
     setLotteryHistory((prev) => {
       const next = [...prev];
       next.splice(index, 1);
@@ -390,7 +380,6 @@ function App() {
       } catch (e) {}
       return next;
     });
-    // サーバー側で全体データも削除できるなら通知（サーバーで対応が必要）
     socket.emit("admin_delete_lottery_history", { title: entry.title, index });
   };
 
@@ -406,9 +395,6 @@ function App() {
 
   const displayHistory = history || [];
 
-  // -------------------------------
-  // JSX（元の構造・文言を保持）
-  // -------------------------------
   return (
     <div className="app">
       {!loggedIn && !adminMode ? (
@@ -441,14 +427,14 @@ function App() {
         <div className="admin-screen">
           <div className="header">管理者画面</div>
 
-          {/* --- マッチング --- */}
+          {/* マッチング */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleToggleMatch}>
               {matchEnabled ? "マッチング中" : "マッチング開始"}
             </button>
           </div>
 
-          {/* --- 抽選 --- */}
+          {/* 抽選 */}
           <div className="admin-section">
             <h3>抽選</h3>
             <label>
@@ -503,7 +489,7 @@ function App() {
             </ul>
           </div>
 
-          {/* --- 抽選履歴 --- */}
+          {/* 抽選履歴 */}
           <div className="admin-section">
             <h3>抽選履歴</h3>
             {lotteryHistory.length === 0 ? (
@@ -530,7 +516,6 @@ function App() {
                               </span>
                             )
                           )}
-                          {/* 個別削除ボタン（行内） */}
                           <button
                             className="main-btn"
                             style={{ marginLeft: "8px" }}
@@ -552,7 +537,7 @@ function App() {
             )}
           </div>
 
-          {/* --- 自動ログアウト設定 --- */}
+          {/* 自動ログアウト */}
           <div className="admin-section">
             <h3>自動ログアウト設定</h3>
             <label>
@@ -569,7 +554,7 @@ function App() {
             </button>
           </div>
 
-          {/* --- ログイン中ユーザー --- */}
+          {/* ログイン中ユーザー */}
           <div className="admin-section">
             <h3>ログイン中のユーザー</h3>
             <table style={{ color: "white", borderCollapse: "collapse" }}>
@@ -621,7 +606,7 @@ function App() {
             </button>
           </div>
 
-          {/* --- 対戦中の部屋一覧 --- */}
+          {/* 対戦中の部屋一覧 */}
           <div className="admin-section">
             <h3>対戦中の部屋一覧</h3>
             {activeMatches.length === 0 ? (
@@ -673,7 +658,6 @@ function App() {
             )}
           </div>
 
-          {/* --- 管理者ログアウト --- */}
           <div className="admin-section">
             <button className="main-btn" onClick={handleAdminLogout}>
               管理者画面からログアウト
