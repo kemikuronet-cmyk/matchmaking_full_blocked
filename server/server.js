@@ -13,27 +13,25 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Vite ビルド出力（React アプリ）の静的配信
+app.use(express.static(path.join(__dirname, "../client/dist")));
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: "*" },
 });
 
-// --- 静的ファイル配信 ---
-const clientDistPath = path.join(__dirname, "../client/dist");
-app.use(express.static(clientDistPath));
-app.get("*", (req, res) => {
-  res.sendFile(path.join(clientDistPath, "index.html"));
-});
-
-// --- ここから既存のマッチング・Socket.io 処理 ---
+// --- データ保持 ---
 let users = []; // { id, name, sessionId, status, history, currentOpponent, deskNum, loginTime }
 let activeMatches = []; // { deskNum, player1Id, player2Id, player1, player2, player1SessionId, player2SessionId }
 let nextDeskNum = 1;
 let matchEnabled = false;
 
+// --- Socket.io ---
 io.on("connection", (socket) => {
   console.log("New client connected:", socket.id);
 
+  // --- ユーザーログイン ---
   socket.on("login", ({ name, sessionId, history, recentOpponents }) => {
     let user = users.find((u) => u.sessionId === sessionId);
     if (!user) {
@@ -66,6 +64,7 @@ io.on("connection", (socket) => {
     socket.emit("login_ok", user);
   });
 
+  // --- 対戦相手を探す ---
   socket.on("find_opponent", () => {
     const user = users.find((u) => u.id === socket.id);
     if (!user || !matchEnabled) return;
@@ -110,6 +109,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // --- 勝利報告 ---
   socket.on("report_win_request", () => {
     const user = users.find((u) => u.id === socket.id);
     if (!user || !user.currentOpponent) return;
@@ -126,7 +126,6 @@ io.on("connection", (socket) => {
   socket.on("opponent_win_confirmed", ({ accepted }) => {
     const user = users.find((u) => u.id === socket.id);
     if (!user || !user.currentOpponent) return;
-
     const opponent = users.find((u) => u.id === user.currentOpponent.id);
     if (!opponent) return;
 
@@ -162,18 +161,18 @@ io.on("connection", (socket) => {
     }
   });
 
+  // --- ユーザーログアウト ---
   socket.on("logout", () => {
     users = users.filter((u) => u.id !== socket.id);
-    activeMatches = activeMatches.filter((m) => m.player1Id !== socket.id && m.player2Id !== socket.id);
+    activeMatches = activeMatches.filter(
+      (m) => m.player1Id !== socket.id && m.player2Id !== socket.id
+    );
   });
 
-  // 管理者関連
+  // --- 管理者 ---
   socket.on("admin_login", ({ password }) => {
-    if (password === process.env.ADMIN_PASSWORD) {
-      socket.emit("admin_ok");
-    } else {
-      socket.emit("admin_fail");
-    }
+    if (password === process.env.ADMIN_PASSWORD) socket.emit("admin_ok");
+    else socket.emit("admin_fail");
   });
 
   socket.on("admin_view_users", () => {
@@ -188,12 +187,20 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     const leavingUser = users.find((u) => u.id === socket.id);
     if (leavingUser) {
-      activeMatches = activeMatches.filter((m) => m.player1Id !== socket.id && m.player2Id !== socket.id);
+      activeMatches = activeMatches.filter(
+        (m) => m.player1Id !== socket.id && m.player2Id !== socket.id
+      );
       users = users.filter((u) => u.id !== socket.id);
     }
   });
 });
 
+// --- React SPA ルーティング対応 ---
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../client/dist/index.html"));
+});
+
+// --- サーバ起動 ---
 httpServer.listen(process.env.PORT || 4000, () => {
   console.log("Server is running");
 });
