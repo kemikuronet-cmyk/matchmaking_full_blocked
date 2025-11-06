@@ -1,4 +1,6 @@
-// ✅ Server.js（完全統合・永続化・状態復元・Render対応版）
+// ✅ Server.js（完全統合版）
+// 管理者表示・勝利報告・履歴更新 修正版
+
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -17,13 +19,10 @@ const io = new Server(server, { cors: { origin: "*" } });
 app.use(cors());
 app.use(express.json());
 
-// ✅ React ビルド配信 (Render対応)
 const CLIENT_DIST = path.join(__dirname, "../client/dist");
 if (fs.existsSync(CLIENT_DIST)) {
   app.use(express.static(CLIENT_DIST));
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(CLIENT_DIST, "index.html"));
-  });
+  app.get("*", (req, res) => res.sendFile(path.join(CLIENT_DIST, "index.html")));
 } else {
   app.get("/", (req, res) => res.send("Client dist not found. Please build client."));
 }
@@ -33,27 +32,27 @@ if (fs.existsSync(CLIENT_DIST)) {
 // -----------------
 const DATA_FILE = path.join(__dirname, "server_data.json");
 function saveData() {
-  const data = { users, desks, lotteryHistory, matchEnabled, autoLogoutHours };
+  const data = { users, desks, matchEnabled, lotteryHistory, autoLogoutHours };
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 function loadData() {
   if (fs.existsSync(DATA_FILE)) {
     try {
       const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-      if (data.users) users = data.users;
-      if (data.desks) desks = data.desks;
-      if (data.lotteryHistory) lotteryHistory = data.lotteryHistory;
-      if (data.matchEnabled !== undefined) matchEnabled = data.matchEnabled;
-      if (data.autoLogoutHours) autoLogoutHours = data.autoLogoutHours;
-      console.log("✅ Loaded saved data:", users.length, "users");
+      users = data.users || [];
+      desks = data.desks || {};
+      matchEnabled = data.matchEnabled || false;
+      lotteryHistory = data.lotteryHistory || [];
+      autoLogoutHours = data.autoLogoutHours || 12;
+      console.log(`✅ Loaded ${users.length} users`);
     } catch (e) {
-      console.error("❌ Failed to load data:", e);
+      console.error("❌ Load failed:", e);
     }
   }
 }
 
 // -----------------
-// メモリ状態
+// 状態変数
 // -----------------
 let users = [];
 let desks = {};
@@ -62,10 +61,9 @@ let adminSocket = null;
 let adminPassword = "admin1234";
 let autoLogoutHours = 12;
 let lotteryHistory = [];
-let currentLotteryTitle = "";
 
 // -----------------
-// ヘルパー関数
+// ヘルパー
 // -----------------
 const now = () => new Date().toISOString();
 const findUserBySocket = (id) => users.find((u) => u.id === id);
@@ -78,13 +76,18 @@ function calculateWinsLosses(u) {
 }
 
 function compactUserForAdmin(u) {
-  return { id: u.id, name: u.name, sessionId: u.sessionId, status: u.status, loginTime: u.loginTime };
+  return {
+    id: u.id,
+    name: u.name,
+    status: u.status,
+    loginTime: u.loginTime,
+  };
 }
 
 function sendUserListTo(socket = null) {
   const payload = users.map(compactUserForAdmin);
-  if (socket?.emit) socket.emit("admin_user_list", payload);
-  if (adminSocket && adminSocket.id !== socket?.id) adminSocket.emit("admin_user_list", payload);
+  if (adminSocket) adminSocket.emit("admin_user_list", payload);
+  if (socket && socket.emit && socket.id !== adminSocket?.id) socket.emit("admin_user_list", payload);
 }
 
 function broadcastActiveMatchesToAdmin() {
@@ -103,16 +106,14 @@ io.on("connection", (socket) => {
   console.log("🔗 connected:", socket.id);
 
   // --- login ---
-  socket.on("login", ({ name, sessionId } = {}) => {
+  socket.on("login", ({ name, sessionId }) => {
     if (!name?.trim()) return;
 
     let user = sessionId ? findUserBySession(sessionId) : null;
     if (user) {
-      // ✅ 既存ユーザー復元
       user.id = socket.id;
       user.status = user.status || "idle";
     } else {
-      // ✅ 新規ユーザー登録
       user = {
         id: socket.id,
         name,
@@ -124,20 +125,17 @@ io.on("connection", (socket) => {
       };
       users.push(user);
     }
-
     calculateWinsLosses(user);
     saveData();
 
-    // ✅ 状態送信
     socket.emit("login_ok", {
       ...user,
-      history: user.history,
       wins: user.wins,
       losses: user.losses,
       totalBattles: user.totalBattles,
     });
 
-    // ✅ マッチング有効状態送信
+    socket.emit("update_history", user.history);
     socket.emit("match_status", { enabled: matchEnabled });
 
     sendUserListTo();
@@ -175,6 +173,41 @@ io.on("connection", (socket) => {
     sendUserListTo();
   });
 
+  // --- 勝利報告 ---
+  socket.on("report_win", ({ deskNum }) => {
+    const desk = desks[deskNum];
+    if (!desk) return;
+
+    const winner = findUserBySocket(socket.id);
+    if (!winner) return;
+
+    const loser =
+      desk.p1.id === winner.id ? findUserBySession(desk.p2.sessionId) : findUserBySession(desk.p1.sessionId);
+
+    if (!loser) return;
+
+    // 履歴登録
+    winner.history.push({ opponent: loser.name, result: "WIN", time: now() });
+    loser.history.push({ opponent: winner.name, result: "LOSE", time: now() });
+    calculateWinsLosses(winner);
+    calculateWinsLosses(loser);
+
+    winner.status = "idle";
+    loser.status = "idle";
+
+    // 双方に更新送信
+    io.to(winner.id).emit("battle_end", { result: "WIN" });
+    io.to(loser.id).emit("battle_end", { result: "LOSE" });
+
+    io.to(winner.id).emit("update_history", winner.history);
+    io.to(loser.id).emit("update_history", loser.history);
+
+    delete desks[deskNum];
+    saveData();
+    sendUserListTo();
+    broadcastActiveMatchesToAdmin();
+  });
+
   // --- logout ---
   socket.on("logout", () => {
     users = users.filter((u) => u.id !== socket.id);
@@ -202,7 +235,7 @@ io.on("connection", (socket) => {
   // --- disconnect ---
   socket.on("disconnect", () => {
     const user = findUserBySocket(socket.id);
-    if (user) user.id = null; // IDは消すがデータ保持
+    if (user) user.id = null;
     if (adminSocket?.id === socket.id) adminSocket = null;
     saveData();
     sendUserListTo();
