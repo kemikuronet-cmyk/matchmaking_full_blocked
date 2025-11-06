@@ -1,264 +1,267 @@
-// ✅ 完全統合版 Server.js（2025/11 修正版）
-// 全機能保持＋管理者一覧同期＋再マッチ防止強化版
-
+// ✅ Server.js（Render対応・フル統合版・永続化機能付き）
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 app.use(cors());
-app.use(express.static(path.resolve("dist")));
 app.use(express.json());
 
-// ------------------------------
-// 永続データファイル
-// ------------------------------
-const DATA_FILE = "server_data.json";
-
-// デフォルトデータ構造
-const defaultData = {
-  users: [],
-  matchEnabled: true,
-  nextTableNumber: 1,
-  totalMatches: 0,
-  lastReset: new Date().toISOString().split("T")[0],
-};
-
-// データ読み込み
-let serverData;
-try {
-  serverData = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-  console.log("✅ server_data.json loaded.");
-} catch {
-  serverData = { ...defaultData };
-  console.log("⚠️ No server_data.json found. Using default.");
+// ✅ Render / Vite ビルド対応
+const CLIENT_DIST = path.join(__dirname, "../client/dist");
+if (fs.existsSync(CLIENT_DIST)) {
+  app.use(express.static(CLIENT_DIST));
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(CLIENT_DIST, "index.html"));
+  });
+} else {
+  app.get("/", (req, res) => res.send("Client dist not found. Please build client."));
 }
 
-// データ保存関数
+// -----------------
+// 永続データ保存用ファイル
+// -----------------
+const DATA_FILE = path.join(__dirname, "server_data.json");
 function saveData() {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(serverData, null, 2));
+  const data = { users, desks, lotteryHistory };
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+}
+function loadData() {
+  if (fs.existsSync(DATA_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+      if (data.users) users = data.users;
+      if (data.desks) desks = data.desks;
+      if (data.lotteryHistory) lotteryHistory = data.lotteryHistory;
+    } catch (e) {
+      console.error("❌ Failed to load server_data.json:", e);
+    }
+  }
 }
 
-// ------------------------------
-// 内部状態管理
-// ------------------------------
-let users = serverData.users || [];
-let matchEnabled = serverData.matchEnabled;
-let nextTableNumber = serverData.nextTableNumber;
-let totalMatches = serverData.totalMatches;
+// -----------------
+// in-memory state
+// -----------------
+let users = []; // { id, name, sessionId, status, loginTime, history:[], recentOpponents:[], wins, losses, totalBattles }
+let desks = {}; // deskNum -> { p1, p2, reported }
+let matchEnabled = false;
 let adminSocket = null;
+let adminPassword = "admin1234";
+let autoLogoutHours = 12;
+let lotteryHistory = [];
+let currentLotteryTitle = "";
 
-// ------------------------------
-// 自動リセット（毎日0時）
-// ------------------------------
-setInterval(() => {
-  const today = new Date().toISOString().split("T")[0];
-  if (serverData.lastReset !== today) {
-    console.log("🕛 Daily reset executed.");
-    users = [];
-    nextTableNumber = 1;
-    totalMatches = 0;
-    matchEnabled = true;
-    serverData = { ...defaultData, lastReset: today };
-    saveData();
-    io.emit("server_reset");
-  }
-}, 60 * 1000);
+// -----------------
+// helpers
+// -----------------
+const now = () => new Date().toISOString();
+function assignDeskSequential() { let i = 1; while (desks[i]) i++; return i; }
+const findUserBySocket = (socketId) => users.find((u) => u.id === socketId);
+const findUserBySession = (sessionId) => users.find((u) => u.sessionId === sessionId);
 
-// ------------------------------
-// 管理者同期関数
-// ------------------------------
-function sendUserListTo(target) {
-  if (!target) return;
-  target.emit(
-    "admin_user_list",
-    users.map((u) => ({
-      name: u.name,
-      status: u.status,
-      wins: u.wins,
-      losses: u.losses,
-      table: u.table,
-    }))
-  );
+function calculateWinsLosses(user) {
+  user.wins = user.history.filter(h => h.result === "WIN").length;
+  user.losses = user.history.filter(h => h.result === "LOSE").length;
+  user.totalBattles = user.history.length;
+}
+
+function formatLotteryForClient(hist = []) {
+  return hist.map(e => ({
+    title: e.title,
+    winners: (Array.isArray(e.winners) ? e.winners : []).map(w => ({ name: w.name }))
+  }));
+}
+
+function allLotteryWinnerSessionIds() {
+  return lotteryHistory.flatMap(e => (Array.isArray(e.winners) ? e.winners.map(w => w.sessionId) : []));
+}
+
+function compactUserForAdmin(u) {
+  return { id: u.id, name: u.name, sessionId: u.sessionId, status: u.status, loginTime: u.loginTime, history: u.history || [] };
+}
+
+function sendUserListTo(socket = null) {
+  const payload = users.map(u => compactUserForAdmin(u));
+  if (socket && typeof socket.emit === "function") socket.emit("admin_user_list", payload);
+  if (adminSocket && adminSocket.id !== socket?.id) adminSocket.emit("admin_user_list", payload);
 }
 
 function broadcastActiveMatchesToAdmin() {
-  if (!adminSocket) return;
-  const activeMatches = users.filter((u) => u.status === "in_match");
-  adminSocket.emit("admin_active_matches", activeMatches);
+  const active = Object.keys(desks).map(deskNum => {
+    const d = desks[deskNum];
+    return { deskNum, player1: d.p1?.name || "不明", player2: d.p2?.name || "不明", player1SessionId: d.p1?.sessionId, player2SessionId: d.p2?.sessionId };
+  });
+  if (adminSocket) adminSocket.emit("admin_active_matches", active);
 }
 
-// ------------------------------
-// Socket.io 通信
-// ------------------------------
+// -----------------
+// socket.io handlers
+// -----------------
 io.on("connection", (socket) => {
-  console.log(`🟢 User connected: ${socket.id}`);
+  console.log("✅ Connected:", socket.id);
 
-  // --- ユーザーログイン ---
-  socket.on("login", ({ name }) => {
-    if (!name) return;
+  // --- login ---
+  socket.on("login", ({ name, sessionId } = {}) => {
+    if (!name || !name.trim()) return;
+    let user = sessionId ? findUserBySession(sessionId) : null;
+    if (!user) user = users.find(u => u.name === name);
 
-    let user = users.find((u) => u.name === name);
-    if (!user) {
-      user = {
-        id: socket.id,
-        name,
-        status: "idle",
-        wins: 0,
-        losses: 0,
-        table: null,
-        recentOpponents: [],
-        recentOpponentsNames: [],
-        sessionId: socket.id,
-      };
-      users.push(user);
-    } else {
+    if (user) {
+      const hoursDiff = (Date.now() - new Date(user.loginTime).getTime()) / 3600000;
+      if (hoursDiff >= autoLogoutHours) { user.history = []; user.recentOpponents = []; }
       user.id = socket.id;
-      user.status = "idle";
-      user.table = null;
-      user.sessionId = socket.id;
+      user.status = user.status || "idle";
+    } else {
+      user = { id: socket.id, name, sessionId: sessionId || socket.id, status: "idle", loginTime: now(), history: [], recentOpponents: [] };
+      users.push(user);
     }
 
-    socket.emit("login_success", user);
-    io.emit("update_user_list", users);
-    sendUserListTo(adminSocket);
+    calculateWinsLosses(user);
+    saveData();
+
+    socket.emit("login_ok", { ...user, history: user.history, wins: user.wins, losses: user.losses, totalBattles: user.totalBattles, lotteryList: formatLotteryForClient(lotteryHistory) });
+    sendUserListTo(socket);
+    broadcastActiveMatchesToAdmin();
   });
 
-  // --- 対戦相手を探す ---
-  socket.on("find_opponent", () => {
-    const user = users.find((u) => u.id === socket.id);
-    if (!user || !matchEnabled) return;
+  // --- logout ---
+  socket.on("logout", () => { users = users.filter(u => u.id !== socket.id); saveData(); sendUserListTo(); broadcastActiveMatchesToAdmin(); });
 
-    const candidate = users.find(
-      (u) =>
-        u.id !== user.id &&
-        u.status === "searching" &&
-        !(user.recentOpponents || []).includes(u.sessionId) &&
-        !(u.recentOpponents || []).includes(user.sessionId) &&
-        u.name !== user.name &&
-        !(user.recentOpponentsNames || []).includes(u.name) &&
-        !(u.recentOpponentsNames || []).includes(user.name)
+  // --- find opponent ---
+  socket.on("find_opponent", () => {
+    const user = findUserBySocket(socket.id);
+    if (!user || !matchEnabled) return;
+    user.status = "searching";
+
+    const candidate = users.find(u =>
+      u.id !== user.id &&
+      u.status === "searching" &&
+      !(user.recentOpponents || []).includes(u.sessionId) &&
+      !(u.recentOpponents || []).includes(user.sessionId)
     );
 
     if (candidate) {
-      const table = nextTableNumber++;
-      user.status = candidate.status = "in_match";
-      user.table = candidate.table = table;
-      totalMatches++;
-      io.to(user.id).emit("match_found", { opponent: candidate.name, table });
-      io.to(candidate.id).emit("match_found", { opponent: user.name, table });
-      sendUserListTo(adminSocket);
-    } else {
-      user.status = "searching";
-      socket.emit("searching");
+      const deskNum = assignDeskSequential();
+      desks[deskNum] = { p1: user, p2: candidate, reported: null };
+      user.status = candidate.status = "in_battle";
+
+      user.recentOpponents.push(candidate.sessionId);
+      candidate.recentOpponents.push(user.sessionId);
+
+      io.to(user.id).emit("matched", { opponent: { id: candidate.id, name: candidate.name }, deskNum });
+      io.to(candidate.id).emit("matched", { opponent: { id: user.id, name: user.name }, deskNum });
+
+      broadcastActiveMatchesToAdmin();
+      saveData();
+    }
+    sendUserListTo();
+  });
+
+  socket.on("cancel_find", () => { const user = findUserBySocket(socket.id); if (user && user.status !== "in_battle") user.status = "idle"; saveData(); sendUserListTo(); });
+
+  // --- report win request ---
+  socket.on("report_win_request", () => {
+    const user = findUserBySocket(socket.id);
+    if (!user) return;
+    const deskNum = Object.keys(desks).find(d => {
+      const m = desks[d];
+      return m && (m.p1.id === socket.id || m.p2.id === socket.id);
+    });
+    if (!deskNum) return;
+
+    const match = desks[deskNum];
+    const opponent = match.p1.id === socket.id ? match.p2 : match.p1;
+    match.reported = user.id;
+
+    io.to(opponent.id).emit("confirm_opponent_win", { deskNum, winnerName: user.name });
+  });
+
+  socket.on("opponent_win_confirmed", ({ accepted } = {}) => {
+    const confirmer = findUserBySocket(socket.id);
+    if (!confirmer) return;
+
+    const deskNum = Object.keys(desks).find(d => {
+      const m = desks[d];
+      return m && (m.p1.id === socket.id || m.p2.id === socket.id);
+    });
+    if (!deskNum) return;
+
+    const match = desks[deskNum];
+    if (!match || !match.reported) return;
+
+    const reporter = match.p1.id === match.reported ? match.p1 : match.p2;
+    const loser = match.p1.id === match.reported ? match.p2 : match.p1;
+
+    if (!accepted) {
+      io.to(reporter.id).emit("win_report_cancelled");
+      io.to(loser.id).emit("win_report_cancelled");
+      match.reported = null;
+      return;
     }
 
-    io.emit("update_user_list", users);
+    reporter.history.push({ opponent: loser.name, result: "WIN", endTime: now() });
+    loser.history.push({ opponent: reporter.name, result: "LOSE", endTime: now() });
+
+    calculateWinsLosses(reporter);
+    calculateWinsLosses(loser);
     saveData();
+
+    io.to(reporter.id).emit("history", reporter.history);
+    io.to(loser.id).emit("history", loser.history);
+    io.to(reporter.id).emit("return_to_menu_battle");
+    io.to(loser.id).emit("return_to_menu_battle");
+
+    delete desks[deskNum];
+    broadcastActiveMatchesToAdmin();
+    sendUserListTo();
   });
 
-  // --- 勝利報告 ---
-  socket.on("report_win", (opponentName) => {
-    const reporter = users.find((u) => u.id === socket.id);
-    const loser = users.find((u) => u.name === opponentName);
-    if (!reporter || !loser) return;
-
-    reporter.wins++;
-    loser.losses++;
-    reporter.status = loser.status = "idle";
-    reporter.table = loser.table = null;
-
-    // 再マッチ防止（ID＋名前）
-    reporter.recentOpponents ??= [];
-    loser.recentOpponents ??= [];
-    reporter.recentOpponentsNames ??= [];
-    loser.recentOpponentsNames ??= [];
-
-    if (!reporter.recentOpponents.includes(loser.sessionId))
-      reporter.recentOpponents.push(loser.sessionId);
-    if (!loser.recentOpponents.includes(reporter.sessionId))
-      loser.recentOpponents.push(reporter.sessionId);
-
-    if (!reporter.recentOpponentsNames.includes(loser.name))
-      reporter.recentOpponentsNames.push(loser.name);
-    if (!loser.recentOpponentsNames.includes(reporter.name))
-      loser.recentOpponentsNames.push(reporter.name);
-
-    io.to(reporter.id).emit("win_confirmed");
-    io.to(loser.id).emit("lose_confirmed");
-    io.emit("update_user_list", users);
-
-    sendUserListTo(adminSocket);
-    saveData();
-  });
-
-  // --- ログアウト ---
-  socket.on("logout", () => {
-    users = users.filter((u) => u.id !== socket.id);
-    io.emit("update_user_list", users);
-    sendUserListTo(adminSocket);
-    saveData();
-  });
-
-  // --- 管理者ログイン ---
+  // --- admin login ---
   socket.on("admin_login", ({ password } = {}) => {
-    const adminPassword = "admin1234"; // ←必要なら変更可
     if (password === adminPassword) {
       adminSocket = socket;
       socket.emit("admin_ok");
       socket.emit("match_status", { enabled: matchEnabled });
+      socket.emit("admin_current_auto_logout", { hours: autoLogoutHours });
+      socket.emit("admin_lottery_history", formatLotteryForClient(lotteryHistory));
       sendUserListTo(adminSocket);
       broadcastActiveMatchesToAdmin();
-
-      const adminSync = setInterval(() => {
-        if (!adminSocket || adminSocket.disconnected) {
-          clearInterval(adminSync);
-        } else {
-          sendUserListTo(adminSocket);
-          broadcastActiveMatchesToAdmin();
-        }
-      }, 3000);
-    } else {
-      socket.emit("admin_fail");
-    }
+      setTimeout(() => { sendUserListTo(adminSocket); broadcastActiveMatchesToAdmin(); }, 500);
+    } else socket.emit("admin_fail");
   });
 
-  // --- 管理者：マッチング有効/無効 ---
-  socket.on("toggle_match", () => {
-    matchEnabled = !matchEnabled;
+  socket.on("admin_toggle_match", ({ enable } = {}) => {
+    matchEnabled = !!enable;
     io.emit("match_status", { enabled: matchEnabled });
-    sendUserListTo(adminSocket);
     saveData();
   });
 
-  // --- 切断時 ---
   socket.on("disconnect", () => {
-    const user = users.find((u) => u.id === socket.id);
-    if (user) {
-      user.status = "offline";
-      io.emit("update_user_list", users);
-      sendUserListTo(adminSocket);
-      saveData();
-    }
-    console.log(`🔴 Disconnected: ${socket.id}`);
+    users = users.filter(u => u.id !== socket.id);
+    Object.keys(desks).forEach(d => {
+      const match = desks[d];
+      if (match && (match.p1.id === socket.id || match.p2.id === socket.id)) delete desks[d];
+    });
+    if (adminSocket && adminSocket.id === socket.id) adminSocket = null;
+    saveData();
+    broadcastActiveMatchesToAdmin();
+    sendUserListTo();
   });
 });
 
-// ------------------------------
-// サーバー起動
-// ------------------------------
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => console.log(`✅ Server is running on port ${PORT}`));
-
-// ------------------------------
-// Express fallback（Render用）
-// ------------------------------
-app.get("*", (req, res) => {
-  res.sendFile(path.resolve("dist", "index.html"));
-});
+// -----------------
+// 起動
+// -----------------
+loadData();
+const PORT = process.env.PORT || 4000;
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
