@@ -1,4 +1,4 @@
-// ✅ Server.js（Render対応・管理者リスト・履歴・勝利報告修正版）
+// ✅ Server.js（Render対応・永続化・管理者修正・再マッチ防止・ボタン保持版）
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -29,7 +29,7 @@ if (fs.existsSync(CLIENT_DIST)) {
 }
 
 // -----------------
-// 永続データ保存用ファイル
+// 永続データ保存用
 // -----------------
 const DATA_FILE = path.join(__dirname, "server_data.json");
 function saveData() {
@@ -59,7 +59,6 @@ let adminSocket = null;
 let adminPassword = "admin1234";
 let autoLogoutHours = 12;
 let lotteryHistory = [];
-let currentLotteryTitle = "";
 
 // -----------------
 // helpers
@@ -127,16 +126,36 @@ io.on("connection", (socket) => {
       user.id = socket.id;
       user.status = user.status || "idle";
     } else {
-      user = { id: socket.id, name, sessionId: sessionId || socket.id, status: "idle", loginTime: now(), history: [], recentOpponents: [] };
+      user = {
+        id: socket.id,
+        name,
+        sessionId: sessionId || socket.id,
+        status: "idle",
+        loginTime: now(),
+        history: [],
+        recentOpponents: []
+      };
       users.push(user);
     }
 
     calculateWinsLosses(user);
     saveData();
 
-    socket.emit("login_ok", { ...user, history: user.history, wins: user.wins, losses: user.losses, totalBattles: user.totalBattles });
+    // ✅ ログイン後にマッチング状態を再送
+    socket.emit("match_status", { enabled: matchEnabled });
+    socket.emit("login_ok", {
+      ...user,
+      history: user.history,
+      wins: user.wins,
+      losses: user.losses,
+      totalBattles: user.totalBattles
+    });
+
     sendUserListTo();
     broadcastActiveMatchesToAdmin();
+
+    // ✅ 遅延で再送（管理者画面更新対策）
+    setTimeout(() => sendUserListTo(), 300);
   });
 
   // --- logout ---
@@ -198,7 +217,6 @@ io.on("connection", (socket) => {
     const opponent = match.p1.id === socket.id ? match.p2 : match.p1;
     match.reported = user.id;
 
-    // ✅ 敗北側に勝利報告確認を送信
     io.to(opponent.id).emit("confirm_opponent_win", { deskNum, winnerName: user.name });
     sendUserListTo();
   });
@@ -233,10 +251,8 @@ io.on("connection", (socket) => {
     calculateWinsLosses(loser);
     saveData();
 
-    // ✅ 両者に履歴を送信
     io.to(reporter.id).emit("history", reporter.history);
     io.to(loser.id).emit("history", loser.history);
-
     io.to(reporter.id).emit("return_to_menu_battle");
     io.to(loser.id).emit("return_to_menu_battle");
 
@@ -253,10 +269,8 @@ io.on("connection", (socket) => {
       socket.emit("match_status", { enabled: matchEnabled });
       sendUserListTo(adminSocket);
       broadcastActiveMatchesToAdmin();
-      setTimeout(() => { sendUserListTo(adminSocket); broadcastActiveMatchesToAdmin(); }, 500);
-    } else {
-      socket.emit("admin_fail");
-    }
+      setTimeout(() => sendUserListTo(adminSocket), 500);
+    } else socket.emit("admin_fail");
   });
 
   socket.on("admin_toggle_match", ({ enable } = {}) => {
