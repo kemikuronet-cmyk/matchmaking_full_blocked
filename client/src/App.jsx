@@ -1,4 +1,4 @@
-// client/src/App.jsx
+// client/src/App.jsx（管理者ログイン修正版）
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
@@ -35,7 +35,6 @@ function App() {
 
   const loginAttempted = useRef(false);
 
-  // --- 初期復元（user/history/lottery） ---
   useEffect(() => {
     if (!loginAttempted.current) {
       const savedUser = localStorage.getItem("user");
@@ -60,7 +59,7 @@ function App() {
       loginAttempted.current = true;
     }
 
-    // --- Socket.ioイベント ---
+    // --- Socket.io イベント ---
     socket.on("login_ok", (u) => {
       const localHist = (() => {
         try { return JSON.parse(localStorage.getItem("history") || "[]"); } 
@@ -68,7 +67,6 @@ function App() {
       })();
       const serverHist = Array.isArray(u.history) ? u.history : [];
       const finalHistory = serverHist.length >= localHist.length ? serverHist : localHist;
-      const lotteryListFromServer = Array.isArray(u.lotteryList) ? u.lotteryList : [];
 
       const outUser = { ...u };
       setUser(outUser);
@@ -76,21 +74,11 @@ function App() {
       setName(u.name);
       setSearching(u.status === "searching");
       setHistory(finalHistory);
-      setLotteryList(lotteryListFromServer);
+      setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
       setLotteryTitle("");
 
-      try {
-        localStorage.setItem("user", JSON.stringify(outUser));
-        localStorage.setItem("history", JSON.stringify(finalHistory));
-      } catch (e) {}
-
-      try {
-        socket.emit("sync_history", { 
-          sessionId: outUser.sessionId, 
-          history: finalHistory, 
-          recentOpponents: outUser.recentOpponents || [] 
-        });
-      } catch (e) {}
+      try { localStorage.setItem("user", JSON.stringify(outUser)); } catch (e) {}
+      try { localStorage.setItem("history", JSON.stringify(finalHistory)); } catch (e) {}
 
       if (u.currentOpponent) {
         setOpponent(u.currentOpponent);
@@ -143,6 +131,9 @@ function App() {
     socket.on("admin_ok", () => {
       setAdminMode(true);
       localStorage.setItem("adminMode", "true");
+
+      // ★管理者ログイン直後に即座にユーザー一覧を取得
+      socket.emit("admin_view_users");
       socket.emit("admin_get_auto_logout");
       socket.emit("admin_get_lottery_history");
       socket.emit("admin_get_active_matches");
@@ -159,12 +150,7 @@ function App() {
     });
 
     socket.on("admin_current_auto_logout", ({ hours }) => setAutoLogoutHours(hours));
-
-    socket.on("admin_set_auto_logout_ok", ({ hours }) => {
-      setAutoLogoutHours(hours);
-      alert(`自動ログアウト時間を ${hours} 時間に設定しました`);
-    });
-
+    socket.on("admin_set_auto_logout_ok", ({ hours }) => { setAutoLogoutHours(hours); alert(`自動ログアウト時間を ${hours} 時間に設定しました`); });
     socket.on("admin_set_lottery_title_ok", ({ title }) => { if (title) setLotteryTitle(title); });
 
     socket.on("lottery_winner", ({ title }) => {
@@ -203,13 +189,15 @@ function App() {
   }, [user]);
 
   // --- history / lottery 永続化 ---
-  useEffect(() => { try { localStorage.setItem("history", JSON.stringify(history)); } catch(e) {} 
+  useEffect(() => { 
+    try { localStorage.setItem("history", JSON.stringify(history)); } catch(e) {} 
     try { const sessionId = user?.sessionId || JSON.parse(localStorage.getItem("user") || "{}").sessionId; socket.emit("history_update", { sessionId, history }); } catch(e) {}
   }, [history]);
 
   useEffect(() => { try { localStorage.setItem("lotteryWinnerTitles", JSON.stringify(lotteryWinnerTitles)); } catch(e) {} }, [lotteryWinnerTitles]);
   useEffect(() => { try { localStorage.setItem("lotteryHistory", JSON.stringify(lotteryHistory)); } catch(e) {} }, [lotteryHistory]);
 
+  // 管理者モード時の定期更新
   useEffect(() => {
     if (!adminMode) return;
     const interval = setInterval(() => {
@@ -219,6 +207,7 @@ function App() {
     }, 3000);
     return () => clearInterval(interval);
   }, [adminMode]);
+
 
   // --- 各種ハンドラ ---
   const handleLogin = () => {
