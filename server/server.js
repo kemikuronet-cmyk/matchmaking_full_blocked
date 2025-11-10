@@ -140,11 +140,9 @@ io.on("connection", (socket) => {
     socket.emit("match_status", { enabled: matchEnabled });
     socket.emit("login_ok", { ...user, history: user.history, wins: user.wins, losses: user.losses, totalBattles: user.totalBattles });
 
-    // 管理者が接続済みの場合にユーザーリストを送信
-    if (adminSocket) {
-      sendUserListTo();
-      broadcastActiveMatchesToAdmin();
-    }
+    sendUserListTo(); // 管理者がいれば送信
+    broadcastActiveMatchesToAdmin();
+    setTimeout(() => sendUserListTo(), 300);
   });
 
   // logout
@@ -256,11 +254,7 @@ io.on("connection", (socket) => {
       adminSocket = socket;
       socket.emit("admin_ok");
       socket.emit("match_status", { enabled: matchEnabled });
-
-      // 既存ユーザー全員を即送信
-      const payload = users.map(u => compactUserForAdmin(u));
-      socket.emit("admin_user_list", payload);
-
+      sendUserListTo(adminSocket);
       broadcastActiveMatchesToAdmin();
       socket.emit("admin_lottery_history", lotteryHistory);
     } else socket.emit("admin_fail");
@@ -270,6 +264,13 @@ io.on("connection", (socket) => {
     matchEnabled = !!enable;
     io.emit("match_status", { enabled: matchEnabled });
     saveData();
+  });
+
+  // ここが重要：管理者がユーザーリストを定期的に取得する
+  socket.on("admin_view_users", () => {
+    if (!adminSocket) return;
+    sendUserListTo(adminSocket);
+    broadcastActiveMatchesToAdmin();
   });
 
   socket.on("disconnect", () => {
