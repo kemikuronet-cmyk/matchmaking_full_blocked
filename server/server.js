@@ -1,4 +1,4 @@
-// ✅ Server.js（管理者画面ユーザー表示修正版 + 抽選・マッチング正常動作）
+// ✅ Server.js（完全統合版：管理者画面ユーザー表示 + 抽選機能 + マッチング + 勝敗履歴 + 永続化）
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -37,11 +37,14 @@ let adminPassword = "admin1234";
 let autoLogoutHours = 12;
 let lotteryHistory = [];
 
+// ------------------------------
+// データ永続化
+// ------------------------------
 function saveData() {
-  const data = { 
-    users: users.map(u => ({ ...u, recentOpponents: u.recentOpponents || [] })), 
-    desks, 
-    lotteryHistory 
+  const data = {
+    users: users.map(u => ({ ...u, recentOpponents: u.recentOpponents || [] })),
+    desks,
+    lotteryHistory
   };
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
@@ -59,7 +62,9 @@ function loadData() {
   }
 }
 
-// helpers
+// ------------------------------
+// ヘルパー関数
+// ------------------------------
 const now = () => new Date().toISOString();
 function assignDeskSequential() { let i = 1; while (desks[i]) i++; return i; }
 const findUserBySocket = (socketId) => users.find((u) => u.id === socketId);
@@ -102,11 +107,15 @@ function broadcastActiveMatchesToAdmin() {
   if (adminSocket) adminSocket.emit("admin_active_matches", active);
 }
 
-// socket.io
+// ------------------------------
+// Socket.IO イベント
+// ------------------------------
 io.on("connection", (socket) => {
   console.log("✅ Connected:", socket.id);
 
-  // login
+  // ------------------------------
+  // ユーザーログイン
+  // ------------------------------
   socket.on("login", ({ name, sessionId, recentOpponents, history } = {}) => {
     if (!name || !name.trim()) return;
 
@@ -140,11 +149,13 @@ io.on("connection", (socket) => {
     socket.emit("match_status", { enabled: matchEnabled });
     socket.emit("login_ok", { ...user, history: user.history, wins: user.wins, losses: user.losses, totalBattles: user.totalBattles });
 
-    // 管理者にユーザーリスト送信
     sendUserListTo();
     broadcastActiveMatchesToAdmin();
   });
 
+  // ------------------------------
+  // ログアウト
+  // ------------------------------
   socket.on("logout", () => {
     users = users.filter(u => u.id !== socket.id);
     saveData();
@@ -152,6 +163,9 @@ io.on("connection", (socket) => {
     broadcastActiveMatchesToAdmin();
   });
 
+  // ------------------------------
+  // マッチング関連
+  // ------------------------------
   socket.on("find_opponent", () => {
     const user = findUserBySocket(socket.id);
     if (!user || !matchEnabled) return;
@@ -245,7 +259,9 @@ io.on("connection", (socket) => {
     sendUserListTo();
   });
 
-  // --- 管理者関連 ---
+  // ------------------------------
+  // 管理者関連
+  // ------------------------------
   socket.on("admin_login", ({ password } = {}) => {
     if (password === adminPassword) {
       adminSocket = socket;
@@ -264,9 +280,53 @@ io.on("connection", (socket) => {
     saveData();
   });
 
-  // 管理者がユーザーリスト要求した場合
   socket.on("admin_view_users", () => sendUserListTo());
 
+  // ✅ 抽選機能を追加
+  socket.on("admin_draw_lots", ({ count = 1, title = "抽選", minBattles = 0, minLoginMinutes = 0 }) => {
+    if (socket.id !== adminSocket?.id) return;
+
+    const nowTime = Date.now();
+    const eligibleUsers = users.filter(u => {
+      const battles = u.history?.length || 0;
+      const minutes = (nowTime - new Date(u.loginTime).getTime()) / 60000;
+      return battles >= minBattles && minutes >= minLoginMinutes && u.status !== "in_battle";
+    });
+
+    if (eligibleUsers.length === 0) {
+      socket.emit("admin_draw_result", { title, winners: [] });
+      return;
+    }
+
+    const shuffled = [...eligibleUsers].sort(() => 0.5 - Math.random());
+    const winners = shuffled.slice(0, count);
+
+    // 当選者に通知
+    winners.forEach(w => {
+      io.to(w.id).emit("lottery_winner", { title });
+    });
+
+    // 履歴に追加
+    const record = {
+      title,
+      winners: winners.map(w => w.name),
+      time: now(),
+    };
+    lotteryHistory.unshift(record);
+    if (lotteryHistory.length > 100) lotteryHistory.pop();
+
+    // 管理者と全員に通知
+    socket.emit("admin_draw_result", { title, winners });
+    socket.emit("admin_lottery_history", lotteryHistory);
+    io.emit("update_lottery_list", { list: lotteryHistory });
+
+    console.log(`🎯 抽選実行: ${title} / 当選者: ${winners.map(w => w.name).join(", ")}`);
+    saveData();
+  });
+
+  // ------------------------------
+  // 切断
+  // ------------------------------
   socket.on("disconnect", () => {
     users = users.filter(u => u.id !== socket.id);
     Object.keys(desks).forEach(d => {
@@ -280,7 +340,9 @@ io.on("connection", (socket) => {
   });
 });
 
-// 起動
+// ------------------------------
+// サーバー起動
+// ------------------------------
 loadData();
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
