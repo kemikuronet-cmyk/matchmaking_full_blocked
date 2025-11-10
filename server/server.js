@@ -37,6 +37,7 @@ let adminPassword = "admin1234";
 let autoLogoutHours = 12;
 let lotteryHistory = [];
 
+// --- データ保存/復元 ---
 function saveData() {
   const data = { 
     users: users.map(u => ({ ...u, recentOpponents: u.recentOpponents || [] })), 
@@ -59,7 +60,7 @@ function loadData() {
   }
 }
 
-// helpers
+// --- helpers ---
 const now = () => new Date().toISOString();
 function assignDeskSequential() { let i = 1; while (desks[i]) i++; return i; }
 const findUserBySocket = (socketId) => users.find((u) => u.id === socketId);
@@ -82,12 +83,18 @@ function compactUserForAdmin(u) {
   };
 }
 
-function sendUserListTo(socket = null) {
+// 管理者にユーザーリスト送信
+function sendUserListTo(targetSocket = null) {
   const payload = users.map(u => compactUserForAdmin(u));
-  if (socket && typeof socket.emit === "function") socket.emit("admin_user_list", payload);
-  if (adminSocket && adminSocket.id !== socket?.id) adminSocket.emit("admin_user_list", payload);
+  if (targetSocket && typeof targetSocket.emit === "function") {
+    targetSocket.emit("admin_user_list", payload);
+  }
+  if (adminSocket && adminSocket.connected) {
+    adminSocket.emit("admin_user_list", payload);
+  }
 }
 
+// 管理者に対戦中マッチ送信
 function broadcastActiveMatchesToAdmin() {
   const active = Object.keys(desks).map(deskNum => {
     const d = desks[deskNum];
@@ -99,10 +106,10 @@ function broadcastActiveMatchesToAdmin() {
       player2SessionId: d.p2?.sessionId
     };
   });
-  if (adminSocket) adminSocket.emit("admin_active_matches", active);
+  if (adminSocket && adminSocket.connected) adminSocket.emit("admin_active_matches", active);
 }
 
-// socket.io
+// --- Socket.io ---
 io.on("connection", (socket) => {
   console.log("✅ Connected:", socket.id);
 
@@ -140,7 +147,7 @@ io.on("connection", (socket) => {
     socket.emit("match_status", { enabled: matchEnabled });
     socket.emit("login_ok", { ...user, history: user.history, wins: user.wins, losses: user.losses, totalBattles: user.totalBattles });
 
-    sendUserListTo(); // 既存管理者がいれば送信
+    sendUserListTo(); // 管理者に送信
     broadcastActiveMatchesToAdmin();
     setTimeout(() => sendUserListTo(), 300);
   });
@@ -254,7 +261,7 @@ io.on("connection", (socket) => {
       adminSocket = socket;
       socket.emit("admin_ok");
       socket.emit("match_status", { enabled: matchEnabled });
-      sendUserListTo(adminSocket);
+      sendUserListTo(adminSocket); // 初回取得
       broadcastActiveMatchesToAdmin();
       socket.emit("admin_lottery_history", lotteryHistory);
     } else socket.emit("admin_fail");
@@ -264,6 +271,11 @@ io.on("connection", (socket) => {
     matchEnabled = !!enable;
     io.emit("match_status", { enabled: matchEnabled });
     saveData();
+  });
+
+  // admin_view_users（App.jsx定期リクエスト対応）
+  socket.on("admin_view_users", () => {
+    sendUserListTo();
   });
 
   socket.on("disconnect", () => {
