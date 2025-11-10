@@ -1,4 +1,4 @@
-// ✅ Server.js（完全統合版・管理者画面ユーザー表示修正版 + 抽選・マッチング）
+// ✅ Server.js（管理者画面ユーザー表示修正版 + 抽選・マッチング正常動作）
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -102,7 +102,7 @@ function broadcastActiveMatchesToAdmin() {
   if (adminSocket) adminSocket.emit("admin_active_matches", active);
 }
 
-// --- socket.io ---
+// socket.io
 io.on("connection", (socket) => {
   console.log("✅ Connected:", socket.id);
 
@@ -140,12 +140,11 @@ io.on("connection", (socket) => {
     socket.emit("match_status", { enabled: matchEnabled });
     socket.emit("login_ok", { ...user, history: user.history, wins: user.wins, losses: user.losses, totalBattles: user.totalBattles });
 
-    sendUserListTo(); 
+    // 管理者にユーザーリスト送信
+    sendUserListTo();
     broadcastActiveMatchesToAdmin();
-    setTimeout(() => sendUserListTo(), 300);
   });
 
-  // logout
   socket.on("logout", () => {
     users = users.filter(u => u.id !== socket.id);
     saveData();
@@ -153,7 +152,6 @@ io.on("connection", (socket) => {
     broadcastActiveMatchesToAdmin();
   });
 
-  // find opponent
   socket.on("find_opponent", () => {
     const user = findUserBySocket(socket.id);
     if (!user || !matchEnabled) return;
@@ -190,7 +188,6 @@ io.on("connection", (socket) => {
     sendUserListTo();
   });
 
-  // report win request
   socket.on("report_win_request", () => {
     const user = findUserBySocket(socket.id);
     if (!user) return;
@@ -252,6 +249,7 @@ io.on("connection", (socket) => {
   socket.on("admin_login", ({ password } = {}) => {
     if (password === adminPassword) {
       adminSocket = socket;
+      console.log("Admin logged in:", socket.id);
       socket.emit("admin_ok");
       socket.emit("match_status", { enabled: matchEnabled });
       sendUserListTo(adminSocket);
@@ -266,14 +264,8 @@ io.on("connection", (socket) => {
     saveData();
   });
 
-  socket.on("admin_view_users", () => {
-    if (!adminSocket) return;
-    sendUserListTo(adminSocket);
-    broadcastActiveMatchesToAdmin();
-  });
-
-  // TODO: 抽選 / 勝敗管理 / 自動ログアウト などの管理者コマンドもここに統合可
-  // ※以前の機能とほぼ同じ実装を維持可能
+  // 管理者がユーザーリスト要求した場合
+  socket.on("admin_view_users", () => sendUserListTo());
 
   socket.on("disconnect", () => {
     users = users.filter(u => u.id !== socket.id);
