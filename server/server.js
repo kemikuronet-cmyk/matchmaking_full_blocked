@@ -1,4 +1,4 @@
-// ✅ Server.js（完全統合版：管理者ユーザー表示 + 抽選修正版 + マッチング/勝敗/永続化 完全対応）
+// ✅ Server.js（完全統合版：抽選結果保持＋再送信＋管理者ユーザー表示＋マッチング/勝敗/永続化 完全対応）
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -36,6 +36,7 @@ let adminSocket = null;
 let adminPassword = "admin1234";
 let autoLogoutHours = 12;
 let lotteryHistory = [];
+let currentLotteryList = []; // ✅ 最新抽選結果保持
 
 function saveData() {
   const data = {
@@ -111,6 +112,11 @@ function broadcastActiveMatchesToAdmin() {
 // socket.io
 io.on("connection", socket => {
   console.log("✅ Connected:", socket.id);
+
+  // ✅ 接続時に最新の抽選結果を送信（全クライアント共通）
+  if (currentLotteryList && currentLotteryList.length > 0) {
+    socket.emit("update_lottery_list", { list: currentLotteryList });
+  }
 
   // login
   socket.on("login", ({ name, sessionId, recentOpponents, history } = {}) => {
@@ -285,6 +291,10 @@ io.on("connection", socket => {
       sendUserListTo(adminSocket);
       broadcastActiveMatchesToAdmin();
       socket.emit("admin_lottery_history", lotteryHistory);
+      // ✅ 管理者ログイン時に最新抽選結果も再送
+      if (currentLotteryList && currentLotteryList.length > 0) {
+        socket.emit("update_lottery_list", { list: currentLotteryList });
+      }
     } else socket.emit("admin_fail");
   });
 
@@ -294,7 +304,6 @@ io.on("connection", socket => {
     saveData();
   });
 
-  // 管理者がユーザーリスト要求
   socket.on("admin_view_users", () => sendUserListTo());
 
   // --- ✅ 抽選機能 ---
@@ -338,7 +347,13 @@ io.on("connection", socket => {
 
     adminSocket.emit("admin_draw_result", { title, winners });
     adminSocket.emit("admin_lottery_history", lotteryHistory);
-    io.emit("update_lottery_list", { list: lotteryHistory });
+
+    // ✅ 現在の抽選リストとして保持し、全員に送信
+    currentLotteryList = winners.map(w => ({
+      name: w.name || "未登録",
+      sessionId: w.sessionId || null
+    }));
+    io.emit("update_lottery_list", { list: currentLotteryList });
 
     saveData();
   });
