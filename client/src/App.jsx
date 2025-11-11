@@ -1,4 +1,4 @@
-// client/src/App.jsx（管理者ログイン修正版）
+// client/src/App.jsx（抽選履歴 永続化・再表示完全対応版）
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
@@ -37,6 +37,7 @@ function App() {
 
   useEffect(() => {
     if (!loginAttempted.current) {
+      // 🔹 ローカルデータの復元
       const savedUser = localStorage.getItem("user");
       const savedAdmin = localStorage.getItem("adminMode");
       const savedTitles = localStorage.getItem("lotteryWinnerTitles");
@@ -45,7 +46,16 @@ function App() {
 
       if (savedTitles) setLotteryWinnerTitles(JSON.parse(savedTitles));
       if (savedHistory) setHistory(JSON.parse(savedHistory));
-      if (savedLotteryHistory) setLotteryHistory(JSON.parse(savedLotteryHistory));
+
+      // ✅ 抽選履歴も確実に復元
+      if (savedLotteryHistory) {
+        try {
+          const parsed = JSON.parse(savedLotteryHistory);
+          if (Array.isArray(parsed)) setLotteryHistory(parsed);
+        } catch (e) {
+          console.error("Failed to parse lotteryHistory from localStorage", e);
+        }
+      }
 
       if (savedUser) {
         const u = JSON.parse(savedUser);
@@ -132,7 +142,7 @@ function App() {
       setAdminMode(true);
       localStorage.setItem("adminMode", "true");
 
-      // ★管理者ログイン直後に即座にユーザー一覧を取得
+      // ✅ 管理者ログイン時に即座に履歴・状態を再取得
       socket.emit("admin_view_users");
       socket.emit("admin_get_auto_logout");
       socket.emit("admin_get_lottery_history");
@@ -163,9 +173,16 @@ function App() {
       setShowLottery(true);
     });
 
+    // ✅ 抽選履歴の受信時処理（localStorage にも保存）
     socket.on("admin_lottery_history", (list) => {
-      setLotteryHistory(list);
-      try { localStorage.setItem("lotteryHistory", JSON.stringify(list)); } catch (e) {}
+      if (Array.isArray(list)) {
+        setLotteryHistory(list);
+        try {
+          localStorage.setItem("lotteryHistory", JSON.stringify(list));
+        } catch (e) {
+          console.error("Failed to save lotteryHistory:", e);
+        }
+      }
     });
 
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
@@ -188,16 +205,18 @@ function App() {
     return () => socket.off();
   }, [user]);
 
-  // --- history / lottery 永続化 ---
-  useEffect(() => { 
-    try { localStorage.setItem("history", JSON.stringify(history)); } catch(e) {} 
-    try { const sessionId = user?.sessionId || JSON.parse(localStorage.getItem("user") || "{}").sessionId; socket.emit("history_update", { sessionId, history }); } catch(e) {}
+  // --- 永続化 ---
+  useEffect(() => {
+    try { localStorage.setItem("history", JSON.stringify(history)); } catch(e) {}
+    try {
+      const sessionId = user?.sessionId || JSON.parse(localStorage.getItem("user") || "{}").sessionId;
+      socket.emit("history_update", { sessionId, history });
+    } catch(e) {}
   }, [history]);
 
   useEffect(() => { try { localStorage.setItem("lotteryWinnerTitles", JSON.stringify(lotteryWinnerTitles)); } catch(e) {} }, [lotteryWinnerTitles]);
   useEffect(() => { try { localStorage.setItem("lotteryHistory", JSON.stringify(lotteryHistory)); } catch(e) {} }, [lotteryHistory]);
 
-  // 管理者モード時の定期更新
   useEffect(() => {
     if (!adminMode) return;
     const interval = setInterval(() => {
@@ -208,8 +227,7 @@ function App() {
     return () => clearInterval(interval);
   }, [adminMode]);
 
-
-  // --- 各種ハンドラ ---
+  // --- 各種ハンドラ（既存のまま保持） ---
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
@@ -227,11 +245,7 @@ function App() {
   const handleLogout = () => {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
-    localStorage.removeItem("user");
-    localStorage.removeItem("adminMode");
-    localStorage.removeItem("lotteryWinnerTitles");
-    localStorage.removeItem("lotteryHistory");
-    localStorage.removeItem("history");
+    localStorage.clear();
     setUser(null);
     setLoggedIn(false);
     setSearching(false);
@@ -255,7 +269,12 @@ function App() {
     const entry = lotteryHistory[index];
     if (!entry) return;
     if (!window.confirm(`抽選「${entry.title}」の履歴を削除しますか？`)) return;
-    setLotteryHistory((prev) => { const next = [...prev]; next.splice(index,1); try{localStorage.setItem("lotteryHistory",JSON.stringify(next));}catch(e){} return next; });
+    setLotteryHistory((prev) => {
+      const next = [...prev];
+      next.splice(index,1);
+      try{localStorage.setItem("lotteryHistory",JSON.stringify(next));}catch(e){}
+      return next;
+    });
     socket.emit("admin_delete_lottery_history", { title: entry.title, index });
   };
 
@@ -265,6 +284,8 @@ function App() {
     try { localStorage.removeItem("lotteryHistory"); } catch(e) {}
     socket.emit("admin_clear_lottery_history");
   };
+
+
 
   const displayHistory = history || [];
 
