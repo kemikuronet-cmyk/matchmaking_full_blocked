@@ -19,7 +19,7 @@ function App() {
   const [deskNum, setDeskNum] = useState(null);
   const [history, setHistory] = useState([]);
 
-  const [lotteryList, setLotteryList] = useState([]);
+  const [lotteryList, setLotteryList] = useState([]); // 表示用（様々な形に対応）
   const [lotteryTitle, setLotteryTitle] = useState("");
   const [drawResult, setDrawResult] = useState([]);
   const [lotteryWinnerTitles, setLotteryWinnerTitles] = useState([]);
@@ -68,6 +68,7 @@ function App() {
     }
 
     // --- socket.on イベント ---
+
     socket.on("login_ok", (u) => {
       const localHist = (() => { try { return JSON.parse(localStorage.getItem("history") || "[]"); } catch { return []; } })();
       const serverHist = Array.isArray(u.history) ? u.history : [];
@@ -79,7 +80,8 @@ function App() {
       setName(u.name);
       setSearching(u.status === "searching");
       setHistory(finalHistory);
-      setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : []);
+      // サーバーが user に lotteryList を含めている場合取り込む（守りの実装）
+      setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : (prev => prev));
       setLotteryTitle("");
 
       try { localStorage.setItem("user", JSON.stringify(outUser)); } catch {}
@@ -101,6 +103,21 @@ function App() {
     });
 
     socket.on("return_to_menu_battle", () => {
+      setOpponent(null);
+      setDeskNum(null);
+      setSearching(false);
+    });
+
+    // --- 勝利報告フロー: 相手に確認を出す（敗北側が受け取る）
+    socket.on("confirm_opponent_win", ({ deskNum: dn, winnerName } = {}) => {
+      const msg = (winnerName ? `${winnerName} の勝ちで` : "対戦相手の勝ちで") + "登録します。よろしいですか？";
+      const accept = window.confirm(msg);
+      socket.emit("opponent_win_confirmed", { accepted: accept });
+      alert(accept ? "勝敗が登録されました" : "勝敗登録がキャンセルされました");
+    });
+
+    socket.on("win_report_cancelled", () => {
+      alert("対戦相手がキャンセルしたため、勝利登録は中止されました");
       setOpponent(null);
       setDeskNum(null);
       setSearching(false);
@@ -146,7 +163,7 @@ function App() {
       if (res && res.title) setLotteryTitle(res.title);
       setDrawResult(res?.winners || []);
       socket.emit("admin_get_lottery_history");
-      socket.emit("admin_get_lottery_list");
+      // 管理者が引いた直後に全員へ送られる update_lottery_list を使う想定なので特段追加処理は不要
     });
 
     socket.on("admin_current_auto_logout", ({ hours }) => setAutoLogoutHours(hours));
@@ -157,10 +174,30 @@ function App() {
       setLotteryWinnerTitles((prev) => prev.includes(title) ? prev : [...prev, title]);
     });
 
+    // --- 抽選リストの受信。サーバー側の形が2種類ありうる（履歴の配列 or 当選者配列）ため柔軟に対応する
     socket.on("update_lottery_list", ({ list }) => {
       if (!list || !Array.isArray(list)) return;
-      setLotteryList(list);
-      try { localStorage.setItem("lotteryList", JSON.stringify(list)); } catch (e) {}
+
+      // list の要素の形を判定する：
+      // A) [{ title, winners: [...] }, ...] の場合 -> そのまま保存
+      // B) [{ name, sessionId }, ...] (＝単純な勝者配列) の場合 -> 包装して保存（直近1エントリ）
+      let normalized = [];
+
+      // detect A
+      const looksLikeHistory = list.every(item => item && (item.title || item.winners));
+      if (looksLikeHistory) {
+        // A の場合：list をそのまま保存
+        normalized = list;
+      } else {
+        // B の場合：wrap into a single-record array so UI expecting {title,winners} can still render
+        normalized = [{
+          title: lotteryTitle || "抽選",
+          winners: list.map(w => (typeof w === "string" ? { name: w } : (w || {})))
+        }];
+      }
+
+      setLotteryList(normalized);
+      try { localStorage.setItem("lotteryList", JSON.stringify(normalized)); } catch (e) {}
       setShowLottery(true);
     });
 
@@ -172,7 +209,7 @@ function App() {
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
     return () => socket.off();
-  }, [user]);
+  }, [user, lotteryTitle]);
 
   // --- 永続化 ---
   useEffect(() => { try { localStorage.setItem("history", JSON.stringify(history)); } catch(e) {} }, [history]);
@@ -180,6 +217,7 @@ function App() {
   useEffect(() => { try { localStorage.setItem("lotteryHistory", JSON.stringify(lotteryHistory)); } catch(e) {} }, [lotteryHistory]);
   useEffect(() => { try { localStorage.setItem("lotteryList", JSON.stringify(lotteryList)); } catch(e) {} }, [lotteryList]);
 
+  // 管理者モード定期更新
   useEffect(() => {
     if (!adminMode) return;
     const interval = setInterval(() => {
@@ -238,7 +276,7 @@ function App() {
   const handleClearLotteryHistory = () => {
     if (!window.confirm("抽選履歴をすべて削除しますか？")) return;
     setLotteryHistory([]);
-    try { localStorage.removeItem("lotteryHistory"); } catch(e) {}
+    try { localStorage.removeItem("lotteryHistory"); } catch (e) {}
     socket.emit("admin_clear_lottery_history");
   };
 
@@ -425,11 +463,73 @@ function App() {
           {!searching && matchEnabled && <button className="main-btn" onClick={handleFindOpponent}>対戦相手を探す</button>}
           {searching && <button className="main-btn" onClick={handleCancelSearch}>対戦相手を探しています…</button>}
           {!matchEnabled && <div className="match-disabled">マッチング時間外です</div>}
+
+          {/* --- 抽選結果（ユーザー側で確認可能） --- */}
+          <div style={{ marginTop: "15px", textAlign: "center" }}>
+            <button className="main-btn" onClick={() => setShowLottery(!showLottery)}>
+              {showLottery ? "抽選結果を閉じる" : "抽選結果"}
+            </button>
+            {showLottery && (
+              <div style={{ marginTop: "10px", color: "yellow", textAlign: "left" }}>
+                {(!lotteryList || lotteryList.length === 0) ? (
+                  <p style={{ color: "lightgray" }}>発表されていません</p>
+                ) : (
+                  <>
+                    {lotteryWinnerTitles.slice().reverse().map((title, idx) => (
+                      <p key={idx} style={{ color: "red", fontWeight: "bold" }}>「{title}」が当選しました！</p>
+                    ))}
+
+                    {/* lotteryList を { title, winners } の配列として扱う */}
+                    {lotteryList.slice().reverse().map((lottery, idx) => {
+                      // lottery が { title, winners } 形式か、単純 winners 配列を wrap した形式かを吸収
+                      const title = lottery?.title || `抽選 ${idx+1}`;
+                      const winners = Array.isArray(lottery?.winners) ? lottery.winners : (Array.isArray(lottery) ? lottery : []);
+                      return (
+                        <div key={idx} style={{ marginBottom: "10px" }}>
+                          <h4>{title} 当選者一覧</h4>
+                          <ul>
+                            {(winners || []).map((w, i) => (
+                              <li key={i}>{(w && (w.name || w)) ? (w.name || w) : "未登録"}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           <div style={{ marginTop: "20px" }}>
             <h3>履歴</h3>
-            {history.length === 0 ? <p style={{ color: "lightgray" }}>まだ対戦履歴はありません</p> :
-              <ul>{history.map((h, idx) => <li key={idx}>{h.result} - {h.opponent}</li>)}</ul>}
-            <button className="main-btn" onClick={handleLogout}>ログアウト</button>
+            {history.length === 0 ? (
+              <p style={{ color: "lightgray" }}>まだ対戦履歴はありません</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>No.</th>
+                    <th>対戦相手</th>
+                    <th>結果</th>
+                    <th>日時</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((h, idx) => (
+                    <tr key={idx}>
+                      <td>{idx + 1}</td>
+                      <td>{h.opponent}</td>
+                      <td className={h.result === "WIN" ? "win" : h.result === "LOSE" ? "lose" : ""}>{h.result}</td>
+                      <td>{h.endTime ? new Date(h.endTime).toLocaleString() : ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div style={{ textAlign: "center", marginTop: "10px" }}>
+              <button className="main-btn" onClick={handleLogout}>ログアウト</button>
+            </div>
           </div>
         </div>
       )}
