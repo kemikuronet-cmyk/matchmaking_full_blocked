@@ -418,7 +418,7 @@ return (
               </tbody>
             </table>
           )}
-          <div style={{ textAlign: "center", marginTop: "10px" }}>
+                   <div style={{ textAlign: "center", marginTop: "10px" }}>
             <button className="main-btn" onClick={handleLogout}>ログアウト</button>
           </div>
         </div>
@@ -426,7 +426,7 @@ return (
     )}
   </div>
 );
-
 }
 
 export default App;
+
