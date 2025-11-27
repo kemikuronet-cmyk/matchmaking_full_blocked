@@ -3,10 +3,18 @@ import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
 
+// --- socket.io に再接続オプションを追加 ---
 const socket = io(
   process.env.NODE_ENV === "production"
     ? window.location.origin
-    : "http://localhost:4000"
+    : "http://localhost:4000",
+  {
+    autoConnect: true,
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000
+  }
 );
 
 function App() {
@@ -19,7 +27,7 @@ function App() {
   const [deskNum, setDeskNum] = useState(null);
   const [history, setHistory] = useState([]);
 
-  const [lotteryList, setLotteryList] = useState([]); // 表示用（様々な形に対応）
+  const [lotteryList, setLotteryList] = useState([]);
   const [lotteryTitle, setLotteryTitle] = useState("");
   const [drawResult, setDrawResult] = useState([]);
   const [lotteryWinnerTitles, setLotteryWinnerTitles] = useState([]);
@@ -37,6 +45,19 @@ function App() {
   const [activeMatches, setActiveMatches] = useState([]);
 
   const loginAttempted = useRef(false);
+
+  // --- 再接続時に自動ログイン ---
+  useEffect(() => {
+    socket.on("connect", () => {
+      const savedUser = localStorage.getItem("user");
+      if (savedUser) {
+        try {
+          const u = JSON.parse(savedUser);
+          socket.emit("login", { name: u.name, sessionId: u.sessionId });
+        } catch {}
+      }
+    });
+  }, []);
 
   // --- 初期復元 & socket 登録 ---
   useEffect(() => {
@@ -67,8 +88,7 @@ function App() {
       loginAttempted.current = true;
     }
 
-    // --- socket.on イベント ---
-
+    // --- socket イベント ---
     socket.on("login_ok", (u) => {
       const localHist = (() => { try { return JSON.parse(localStorage.getItem("history") || "[]"); } catch { return []; } })();
       const serverHist = Array.isArray(u.history) ? u.history : [];
@@ -80,7 +100,6 @@ function App() {
       setName(u.name);
       setSearching(u.status === "searching");
       setHistory(finalHistory);
-      // サーバーが user に lotteryList を含めている場合取り込む（守りの実装）
       setLotteryList(Array.isArray(u.lotteryList) ? u.lotteryList : (prev => prev));
       setLotteryTitle("");
 
@@ -108,7 +127,6 @@ function App() {
       setSearching(false);
     });
 
-    // --- 勝利報告フロー: 相手に確認を出す（敗北側が受け取る）
     socket.on("confirm_opponent_win", ({ deskNum: dn, winnerName } = {}) => {
       const msg = (winnerName ? `${winnerName} の勝ちで` : "対戦相手の勝ちで") + "登録します。よろしいですか？";
       const accept = window.confirm(msg);
@@ -139,73 +157,26 @@ function App() {
       setName("");
     });
 
-    socket.on("history", (hist) => {
-      const h = Array.isArray(hist) ? hist : [];
-      setHistory(h);
-      try { localStorage.setItem("history", JSON.stringify(h)); } catch (e) {}
-    });
-
+    // --- history, match_status, admin_* events ---
+    socket.on("history", (hist) => { const h = Array.isArray(hist) ? hist : []; setHistory(h); try { localStorage.setItem("history", JSON.stringify(h)); } catch {} });
     socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
-
-    socket.on("admin_ok", () => {
-      setAdminMode(true);
-      localStorage.setItem("adminMode", "true");
-      socket.emit("admin_view_users");
-      socket.emit("admin_get_auto_logout");
-      socket.emit("admin_get_lottery_history");
-      socket.emit("admin_get_active_matches");
-    });
-
+    socket.on("admin_ok", () => { setAdminMode(true); localStorage.setItem("adminMode", "true"); socket.emit("admin_view_users"); socket.emit("admin_get_auto_logout"); socket.emit("admin_get_lottery_history"); socket.emit("admin_get_active_matches"); });
     socket.on("admin_fail", () => alert("パスワードが間違っています"));
     socket.on("admin_user_list", (list) => setUsersList(list));
-
-    socket.on("admin_draw_result", (res) => {
-      if (res && res.title) setLotteryTitle(res.title);
-      setDrawResult(res?.winners || []);
-      socket.emit("admin_get_lottery_history");
-      // 管理者が引いた直後に全員へ送られる update_lottery_list を使う想定なので特段追加処理は不要
-    });
-
+    socket.on("admin_draw_result", (res) => { if (res && res.title) setLotteryTitle(res.title); setDrawResult(res?.winners || []); socket.emit("admin_get_lottery_history"); });
     socket.on("admin_current_auto_logout", ({ hours }) => setAutoLogoutHours(hours));
     socket.on("admin_set_auto_logout_ok", ({ hours }) => { setAutoLogoutHours(hours); alert(`自動ログアウト時間を ${hours} 時間に設定しました`); });
     socket.on("admin_set_lottery_title_ok", ({ title }) => { if (title) setLotteryTitle(title); });
-
-    socket.on("lottery_winner", ({ title }) => {
-      setLotteryWinnerTitles((prev) => prev.includes(title) ? prev : [...prev, title]);
-    });
-
-    // --- 抽選リストの受信。サーバー側の形が2種類ありうる（履歴の配列 or 当選者配列）ため柔軟に対応する
+    socket.on("lottery_winner", ({ title }) => { setLotteryWinnerTitles((prev) => prev.includes(title) ? prev : [...prev, title]); });
     socket.on("update_lottery_list", ({ list }) => {
       if (!list || !Array.isArray(list)) return;
-
-      // list の要素の形を判定する：
-      // A) [{ title, winners: [...] }, ...] の場合 -> そのまま保存
-      // B) [{ name, sessionId }, ...] (＝単純な勝者配列) の場合 -> 包装して保存（直近1エントリ）
-      let normalized = [];
-
-      // detect A
       const looksLikeHistory = list.every(item => item && (item.title || item.winners));
-      if (looksLikeHistory) {
-        // A の場合：list をそのまま保存
-        normalized = list;
-      } else {
-        // B の場合：wrap into a single-record array so UI expecting {title,winners} can still render
-        normalized = [{
-          title: lotteryTitle || "抽選",
-          winners: list.map(w => (typeof w === "string" ? { name: w } : (w || {})))
-        }];
-      }
-
+      const normalized = looksLikeHistory ? list : [{ title: lotteryTitle || "抽選", winners: list.map(w => (typeof w === "string" ? { name: w } : (w || {}))) }];
       setLotteryList(normalized);
-      try { localStorage.setItem("lotteryList", JSON.stringify(normalized)); } catch (e) {}
+      try { localStorage.setItem("lotteryList", JSON.stringify(normalized)); } catch {}
       setShowLottery(true);
     });
-
-    socket.on("admin_lottery_history", (list) => {
-      setLotteryHistory(list);
-      try { localStorage.setItem("lotteryHistory", JSON.stringify(list)); } catch (e) {}
-    });
-
+    socket.on("admin_lottery_history", (list) => { setLotteryHistory(list); try { localStorage.setItem("lotteryHistory", JSON.stringify(list)); } catch {} });
     socket.on("admin_active_matches", (list) => setActiveMatches(list));
 
     return () => socket.off();
@@ -217,7 +188,7 @@ function App() {
   useEffect(() => { try { localStorage.setItem("lotteryHistory", JSON.stringify(lotteryHistory)); } catch(e) {} }, [lotteryHistory]);
   useEffect(() => { try { localStorage.setItem("lotteryList", JSON.stringify(lotteryList)); } catch(e) {} }, [lotteryList]);
 
-  // 管理者モード定期更新
+  // --- 管理者モード定期更新 ---
   useEffect(() => {
     if (!adminMode) return;
     const interval = setInterval(() => {
@@ -238,11 +209,13 @@ function App() {
     socket.emit("login", { name: trimmedName, sessionId, history, recentOpponents });
   };
 
-  const handleAdminLogin = () => { if (!adminPassword) return; socket.emit("admin_login", { password: adminPassword }); };
-  const handleAdminLogout = () => { if (!window.confirm("ログイン画面に戻りますか？")) return; setAdminMode(false); localStorage.removeItem("adminMode"); };
-  const handleFindOpponent = () => { if (!matchEnabled) return; setSearching(true); socket.emit("find_opponent"); };
-  const handleCancelSearch = () => { setSearching(false); socket.emit("cancel_find"); };
-  const handleWinReport = () => { if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return; socket.emit("report_win_request"); };
+  const handleWinReport = () => {
+    if (!socket.connected) return alert("接続が切れています。少し待ってから再度お試しください");
+    if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
+    socket.emit("report_win_request");
+  };
+
+
   const handleLogout = () => {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
