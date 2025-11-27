@@ -5,7 +5,7 @@ import { io } from "socket.io-client";
 const SERVER_URL = "/";
 const AUTO_RECONNECT_INTERVAL = 30000; // 30秒ごとに再接続チェック
 
-export default function App() {
+function App() {
   // -----------------------------
   // 状態管理
   // -----------------------------
@@ -20,11 +20,28 @@ export default function App() {
   const sessionIdRef = useRef(null);
   const reconnectTimer = useRef(null);
 
+  // 追加されているが定義されていなかった state を定義
+  const [tempName, setTempName] = useState("");
+  const [lotteryTitle, setLotteryTitle] = useState("");
+  const [lotteryCount, setLotteryCount] = useState(0);
+  const [lotteryMinBattles, setLotteryMinBattles] = useState(0);
+  const [lotteryMinMinutes, setLotteryMinMinutes] = useState(0);
+  const [lotteryResults] = useState([]);
+  const [stats, setStats] = useState({
+    battles: 0,
+    wins: 0,
+    losses: 0,
+    history: [],
+  });
+  const [winRequested, setWinRequested] = useState(false);
+  const [userLotteryResults, setUserLotteryResults] = useState([]);
+
+  const isAdmin = adminLoggedIn;
+
   // -----------------------------
   // 初期化
   // -----------------------------
   useEffect(() => {
-    // sessionId 保存／生成
     let savedSessionId = localStorage.getItem("sessionId");
     if (!savedSessionId) {
       savedSessionId = crypto.randomUUID();
@@ -32,13 +49,9 @@ export default function App() {
     }
     sessionIdRef.current = savedSessionId;
 
-    // Socket.io 接続
     const s = io(SERVER_URL, { reconnection: true });
     setSocket(s);
 
-    // -----------------------------
-    // Socket.io イベント
-    // -----------------------------
     s.on("connect", () => {
       console.log("✅ Connected to server", s.id);
       if (user?.name) {
@@ -53,9 +66,6 @@ export default function App() {
     s.on("admin_fail", () => alert("管理者パスワードが違います"));
     s.on("admin_user_list", (list) => setUsersList(list));
 
-    // -----------------------------
-    // 長時間維持対応（自動再接続）
-    // -----------------------------
     reconnectTimer.current = setInterval(() => {
       if (!s.connected) {
         console.log("Socket disconnected. Attempting reconnect...");
@@ -81,21 +91,11 @@ export default function App() {
   // -----------------------------
   // 対戦操作
   // -----------------------------
-  const findOpponent = () => {
-    socket?.emit("find_opponent");
-  };
-
-  const cancelFind = () => {
-    socket?.emit("cancel_find");
-  };
-
-  const reportWin = () => {
-    socket?.emit("report_win_request");
-  };
-
-  const confirmOpponentWin = (accepted) => {
+  const findOpponent = () => socket?.emit("find_opponent");
+  const cancelFind = () => socket?.emit("cancel_find");
+  const reportWin = () => socket?.emit("report_win_request");
+  const confirmOpponentWin = (accepted) =>
     socket?.emit("opponent_win_confirmed", { accepted });
-  };
 
   const logout = () => {
     socket?.emit("logout");
@@ -114,7 +114,12 @@ export default function App() {
   };
 
   const drawLottery = ({ count, minBattles, minLoginMinutes, title }) => {
-    socket?.emit("admin_draw_lots", { count, minBattles, minLoginMinutes, title });
+    socket?.emit("admin_draw_lots", {
+      count,
+      minBattles,
+      minLoginMinutes,
+      title,
+    });
   };
 
   const viewUsers = () => {
@@ -122,28 +127,25 @@ export default function App() {
   };
 
   // -----------------------------
-  // ユーザーリスト・表示更新
+  // ユーザーリスト表示
   // -----------------------------
-  const renderUsersList = () => {
-    return (
-      <ul>
-        {usersList.map(u => (
-          <li key={u.sessionId}>{u.name} - {u.status}</li>
-        ))}
-      </ul>
-    );
-  };
+  const renderUsersList = () => (
+    <ul>
+      {usersList.map((u) => (
+        <li key={u.sessionId}>
+          {u.name} - {u.status}
+        </li>
+      ))}
+    </ul>
+  );
 
   // ==============================
-  // JSX（UI 本体）
+  // JSX
   // ==============================
   return (
     <div className="app-container">
-
-      {/* 背景 */}
       <div className="background" />
 
-      {/* 未ログインならログイン画面 */}
       {!user ? (
         <div className="login-container">
           <h2>ユーザーログイン</h2>
@@ -160,7 +162,6 @@ export default function App() {
 
           <hr />
 
-          {/* 管理者ログイン */}
           <h3>管理者ログイン</h3>
           <input
             type="password"
@@ -174,10 +175,6 @@ export default function App() {
         </div>
       ) : null}
 
-
-      {/* ========================== */}
-      {/* ★ 管理者モード */}
-      {/* ========================== */}
       {isAdmin && (
         <div className="admin-panel">
           <h2>管理者パネル</h2>
@@ -244,7 +241,6 @@ export default function App() {
             抽選を実行
           </button>
 
-          {/* 抽選結果 */}
           {lotteryResults.length > 0 && (
             <div className="lottery-results-box">
               <h3>抽選結果</h3>
@@ -258,13 +254,8 @@ export default function App() {
         </div>
       )}
 
-
-      {/* ========================== */}
-      {/* ★ 一般ユーザー画面 */}
-      {/* ========================== */}
       {user && !isAdmin && (
         <div className="user-menu">
-
           <h2>{user.name} さん</h2>
 
           <div className="stats">
@@ -277,17 +268,14 @@ export default function App() {
             <button className="main-btn" onClick={findOpponent}>
               対戦相手を探す
             </button>
-
             <button className="cancel-btn" onClick={cancelFind}>
               マッチング取消
             </button>
-
             <button className="report-btn" onClick={reportWin}>
               勝利報告
             </button>
           </div>
 
-          {/* 相手からの勝利報告 */}
           {winRequested && (
             <div className="win-confirm-box">
               <p>相手が勝利報告を申請しています。認めますか？</p>
@@ -297,10 +285,7 @@ export default function App() {
               >
                 承認
               </button>
-              <button
-                className="no-btn"
-                onClick={() => confirmOpponentWin(false)}
-              >
+              <button className="no-btn" onClick={() => confirmOpponentWin(false)}>
                 拒否
               </button>
             </div>
@@ -308,7 +293,6 @@ export default function App() {
 
           <hr />
 
-          {/* 対戦履歴 */}
           <h3>対戦履歴</h3>
           <div className="history-box">
             {stats.history?.length ? (
@@ -324,7 +308,6 @@ export default function App() {
             )}
           </div>
 
-          {/* 抽選表示（ユーザー側） */}
           {userLotteryResults.length > 0 && (
             <div className="lottery-box-user">
               <h3>管理者による抽選結果</h3>
@@ -336,7 +319,6 @@ export default function App() {
             </div>
           )}
 
-          {/* ログアウト */}
           <button className="logout-btn" onClick={logout}>
             ログアウト
           </button>
