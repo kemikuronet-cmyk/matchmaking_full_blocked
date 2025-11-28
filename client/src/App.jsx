@@ -3,24 +3,34 @@ import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
 
+/*
+  改善点（この修正版で追加/修正した主な点）
+  - サーバ URL を環境変数で上書き可能に（VITE_SERVER_URL）
+  - visibilitychange を監視して、フォアグラウンド復帰時に確実に socket.connect() と再ログインを行う
+  - 復帰時は localStorage の user/sessionId を使って自動ログイン（管理者モード時は管理者情報取得も再要求）
+  - heartbeat / reconnect の既存処理は維持（ブラウザ環境で停止されていても復帰時に追いつくようにした）
+  - 既存の UI / event ハンドラは変更なし（function 名や emit イベントはそのまま）
+*/
+
 // サーバ接続先（production では window.location.origin に）
-const socket = io(
+// local 開発環境でポートが違う場合は .env に VITE_SERVER_URL を設定してください
+const SERVER_URL =
   process.env.NODE_ENV === "production"
     ? window.location.origin
-    : "http://localhost:4000",
-  {
-    reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 10000,
-    transports: ["websocket", "polling"]
-  }
-);
+    : (import.meta.env.VITE_SERVER_URL || "http://localhost:4000");
+
+console.log("🔌 Connecting to", SERVER_URL);
+
+// Socket 初期化（既存パラメータを踏襲）
+const socket = io(SERVER_URL, {
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 10000,
+  transports: ["websocket", "polling"], // polling を残して互換性維持
+});
 
 // HEARTBEAT 間隔（ミリ秒）: 5分 (300000)
-// クライアント側は背景での実行がブラウザによって止められるため、
-// これが絶対ではないが、復帰後に socket による自動再接続と
-// サーバ側の 1 時間猶予と合わせることで要件を満たします。
 const HEARTBEAT_INTERVAL = 5 * 60 * 1000; // 5 分
 
 function App() {
@@ -54,18 +64,82 @@ function App() {
   const heartbeatTimer = useRef(null);
   const reconnectIntervalRef = useRef(null);
 
-  // sessionId を localStorage に保存しておく（サーバ側の sessionId ベース復元と整合）
+  // -------------------------
+  // sessionId を localStorage に保存（初回）
+  // -------------------------
   useEffect(() => {
     let sid = localStorage.getItem("sessionId");
     if (!sid) {
       try {
-        sid = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `sess-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+        sid = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `sess-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
       } catch {
-        sid = `sess-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+        sid = `sess-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
       }
       localStorage.setItem("sessionId", sid);
     }
+    // store a ref for quick access if needed
+    // (not strictly necessary but kept for clarity)
   }, []);
+
+  // -------------------------
+  // visibilitychange: 復帰時に確実に再接続 & 自動ログインする
+  // -------------------------
+  useEffect(() => {
+    const tryReconnectAndRelogin = () => {
+      try {
+        // 1) ソケット接続が切れていたら接続
+        if (socket && !socket.connected) {
+          try { socket.connect(); } catch (e) { /* ignore */ }
+        }
+
+        // 2) 自動再ログイン（localStorage の user を参照）
+        const savedUserStr = localStorage.getItem("user");
+        const sid = localStorage.getItem("sessionId");
+        if (savedUserStr) {
+          try {
+            const savedUser = JSON.parse(savedUserStr);
+            if (savedUser?.name && sid) {
+              // send login to restore server-side session mapping
+              socket.emit("login", { name: savedUser.name, sessionId: sid });
+            }
+          } catch (e) {
+            // ignore parse errors
+          }
+        }
+
+        // 3) 管理者モードが保存されていれば、再取得を要求
+        const savedAdmin = localStorage.getItem("adminMode");
+        if (savedAdmin === "true") {
+          // request admin data if socket connected or will connect
+          socket.emit("admin_view_users");
+          socket.emit("admin_get_auto_logout");
+          socket.emit("admin_get_lottery_history");
+          socket.emit("admin_get_active_matches");
+        }
+
+        // 4) heartbeat を念のため即送信してサーバの lastActive を更新
+        if (sid && socket && socket.connected) {
+          socket.emit("heartbeat", { sessionId: sid });
+        }
+      } catch (e) {
+        // nothing
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        tryReconnectAndRelogin();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    // also try once when mounting (covers cases where tab opened background-first)
+    tryReconnectAndRelogin();
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []); // 空 deps — 一度だけ登録
 
   // --- 初期復元 & socket 登録 ---
   useEffect(() => {
@@ -88,7 +162,9 @@ function App() {
           setUser(u);
           setLoggedIn(true);
           setName(u.name);
-          socket.emit("login", { name: u.name, sessionId: u.sessionId });
+          // emit login to server to re-associate socket with session
+          const sid = u.sessionId || localStorage.getItem("sessionId");
+          if (sid) socket.emit("login", { name: u.name, sessionId: sid });
         } catch {}
       }
 
