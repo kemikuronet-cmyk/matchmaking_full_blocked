@@ -328,7 +328,7 @@ function App() {
   const userLosses = (history || []).filter(h => h.result === "LOSE").length;
   const userMatches = (history || []).length;
         {/* -------------------- メイン表示 -------------------- */}
-        <div className="main-container">
+                <div className="main-container">
 
           {/* ================== 管理者画面 ================== */}
           {isAdmin && (
@@ -340,9 +340,9 @@ function App() {
                 <button onClick={handleFetchUsers}>ユーザー一覧を更新</button>
               </div>
 
-              {/* --- 卓一覧 --- */}
               <div className="desk-section">
                 <h3>対戦卓一覧</h3>
+
                 {desks.length === 0 ? (
                   <p>現在、稼働中の卓はありません</p>
                 ) : (
@@ -351,12 +351,14 @@ function App() {
                       <li key={i}>
                         <strong>卓 {d.deskNum}</strong>：
                         {d.players?.map((p) => p.name).join(" vs ")}
+
                         <button
                           className="admin-win-btn"
                           onClick={() => handleAdminWin(d.deskNum)}
                         >
                           勝者登録
                         </button>
+
                         <button
                           className="admin-clear-btn"
                           onClick={() => handleForceClearDesk(d.deskNum)}
@@ -369,7 +371,6 @@ function App() {
                 )}
               </div>
 
-              {/* --- 抽選機能 --- */}
               <div className="lottery-admin-section">
                 <h3>抽選機能</h3>
 
@@ -380,12 +381,14 @@ function App() {
                     value={lotteryTitle}
                     onChange={(e) => setLotteryTitle(e.target.value)}
                   />
+
                   <input
                     type="number"
                     placeholder="当選人数"
                     value={lotteryCount}
                     onChange={(e) => setLotteryCount(Number(e.target.value))}
                   />
+
                   <button onClick={handleRunLottery}>
                     抽選を実行
                   </button>
@@ -430,7 +433,6 @@ function App() {
                 <p>対戦数：{user?.totalBattles ?? userMatches}</p>
               </div>
 
-              {/* --- マッチング前 --- */}
               {!opponent && !deskNum && (
                 <div className="match-controls">
                   {!searching ? (
@@ -445,7 +447,6 @@ function App() {
                 </div>
               )}
 
-              {/* --- マッチング中 --- */}
               {opponent && (
                 <div className="battle-info">
                   <h3>対戦相手：{opponent?.name}</h3>
@@ -457,9 +458,9 @@ function App() {
                 </div>
               )}
 
-              {/* --- 対戦履歴 --- */}
               <div className="history-section">
                 <h3>対戦履歴</h3>
+
                 {history.length === 0 ? (
                   <p>対戦履歴がありません</p>
                 ) : (
@@ -473,7 +474,6 @@ function App() {
                 )}
               </div>
 
-              {/* --- 抽選結果（個別表示） --- */}
               <div className="lottery-user-section">
                 <h3>抽選結果</h3>
 
@@ -485,7 +485,6 @@ function App() {
                       <li key={idx}>
                         <strong>{entry.title}</strong>
 
-                        {/* 当選一覧 */}
                         <ul>
                           {entry.winners?.map((w, i) => (
                             <li
@@ -515,7 +514,7 @@ function App() {
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
