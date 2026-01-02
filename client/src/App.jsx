@@ -331,7 +331,7 @@ function App() {
                 <div className="main-container">
 
           {/* ================== 管理者画面 ================== */}
-          {isAdmin && (
+          {adminMode && (
             <div className="admin-panel">
               <h2>管理者メニュー</h2>
 
@@ -423,7 +423,7 @@ function App() {
           )}
 
           {/* ================== ユーザー画面 ================== */}
-          {!isAdmin && user && (
+           {!adminMode && user && (
             <div className="user-menu">
               <h2>ようこそ {user?.name} さん</h2>
 
