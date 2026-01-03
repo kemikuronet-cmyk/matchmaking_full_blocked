@@ -515,7 +515,7 @@ function App() {
           )}
         </div>
       </div>
-    </div>  {/* ← ここを追加 */}
+    </div>
   );
 }
 
