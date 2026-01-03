@@ -1,80 +1,171 @@
-/* ログイン画面全体を中央揃え */
-.login-container {
-  position: absolute;
+/* 全体背景（現行そのまま） */
+body, html, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: url("./images/background.jpg") no-repeat center center fixed;
+  background-size: cover;
+  font-family: Arial, sans-serif;
+  color: white;
+}
+
+/* 共通レイアウト（現行そのまま） */
+.app, .login-screen, .menu-screen, .admin-screen, .battle-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 20px;
+}
+
+/* ヘッダー（現行そのまま） */
+.header {
+  width: 100%;
+  padding: 15px;
+  background: rgba(0,0,0,0.7);
+  text-align: center;
+  font-size: 20px;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* -----------------------------
+   ログイン画面中央表示
+----------------------------- */
+.user-login-center {
+  position: absolute;       /* 画面中央に固定 */
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  text-align: center;          /* 中央揃え */
-  background: rgba(255, 255, 255, 0.85); /* 少し透過させる */
-  padding: 40px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  min-width: 300px;
+  background: rgba(0,0,0,0.7);
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+  min-width: 280px;        /* 小さすぎないように調整 */
+  z-index: 5;              /* 管理者ログインより背面 */
 }
 
-/* ログイン画面の入力欄とボタン */
-.login-container input[type="text"],
-.login-container input[type="password"] {
-  width: 80%;
-  margin: 10px 0;
-  padding: 8px 10px;
-  font-size: 16px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-}
-
-.login-container button {
-  width: 85%;
-  margin: 10px 0;
-  padding: 10px;
-  font-size: 16px;
-  border-radius: 6px;
-  border: none;
-  background-color: #007bff;
-  color: white;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-.login-container button:hover {
-  background-color: #0056b3;
-}
-
-/* 管理者ログインフォームを右上に固定 */
-.admin-login-form {
+/* 管理者ログイン右上（現行デザインベース） */
+.admin-login-topright {
   position: absolute;
   top: 20px;
   right: 20px;
-  width: 200px;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 12px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  text-align: center;
-  font-size: 14px;
+  background: rgba(0,0,0,0.7);
+  padding: 6px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  z-index: 10; /* ログイン画面より前面 */
 }
 
-.admin-login-form input {
-  width: 90%;
-  margin: 6px 0;
-  padding: 6px;
-  font-size: 14px;
+.admin-login-topright input {
+  padding: 3px 5px;
+  font-size: 10px;
   border-radius: 4px;
-  border: 1px solid #ccc;
-}
-
-.admin-login-form button {
-  width: 95%;
-  padding: 6px;
-  font-size: 14px;
-  border-radius: 4px;
-  border: none;
-  background-color: #28a745;
+  border: 1px solid #444;
+  background: rgba(0,0,0,0.6);
   color: white;
-  cursor: pointer;
-  margin-top: 6px;
+  width: 100px;
 }
 
-.admin-login-form button:hover {
-  background-color: #1e7e34;
+.admin-login-topright button {
+  padding: 3px 6px;
+  font-size: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #b22222;
+  color: white;
+}
+
+.admin-login-topright button:hover {
+  background: #d32f2f;
+}
+
+/* 入力欄・ボタンは現行そのまま */
+input {
+  display: block;
+  margin: 10px auto;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #444;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  width: 200px;
+}
+
+button {
+  margin: 5px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.main-btn {
+  background: #444;
+  color: white;
+}
+
+.main-btn:hover {
+  background: #666;
+}
+
+.admin-btn {
+  background: #b22222;
+  color: white;
+}
+
+.admin-btn:hover {
+  background: #d32f2f;
+}
+
+/* 以下、対戦履歴や管理者画面も現行そのまま */
+.history-list {
+  margin-top: 20px;
+  width: 100%;
+  max-width: 500px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.history-list table {
+  width: 100%;
+  border-collapse: collapse;
+  color: white;
+}
+
+.history-list th, .history-list td {
+  border-bottom: 1px solid #555;
+  padding: 6px;
+  text-align: center;
+}
+
+.win {
+  color: #00aaff;
+  font-weight: bold;
+}
+
+.lose {
+  color: red;
+  font-weight: bold;
+}
+
+.lottery-list {
+  margin-top: 15px;
+  color: yellow;
+}
+
+.admin-section {
+  background: rgba(0,0,0,0.7);
+  margin: 15px 0;
+  padding: 15px;
+  border-radius: 10px;
 }
