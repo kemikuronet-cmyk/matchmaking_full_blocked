@@ -1,37 +1,32 @@
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
-import "./App.css"; // CSSは後述
+import "./App.css";
 
-const SERVER_URL = "/"; // 本番用
-const AUTO_RECONNECT_INTERVAL = 30000; // 30秒ごとに再接続チェック
+const SERVER_URL = "/";
+const AUTO_RECONNECT_INTERVAL = 30000;
 
 function App() {
   const [user, setUser] = useState(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [name, setName] = useState("");
   const [searching, setSearching] = useState(false);
-  const [opponent, setOpponent] = useState(null);
-  const [deskNum, setDeskNum] = useState(null);
   const [history, setHistory] = useState([]);
   const [lotteryHistory, setLotteryHistory] = useState([]);
   const [lotteryResults, setLotteryResults] = useState([]);
-  const [lotteryTitle, setLotteryTitle] = useState("");
-  const [lotteryCount, setLotteryCount] = useState(1);
   const [adminMode, setAdminMode] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [desks, setDesks] = useState([]);
   const [matchEnabled, setMatchEnabled] = useState(false);
-
+  const [historyVisible, setHistoryVisible] = useState(true);
+  const [lotteryVisible, setLotteryVisible] = useState(true);
   const socketRef = useRef(null);
   const heartbeatTimer = useRef(null);
-  const reconnectIntervalRef = useRef(null);
 
   // -------------------------
   // Socket.io 初期化
   // -------------------------
   useEffect(() => {
     socketRef.current = io(SERVER_URL);
-
     const socket = socketRef.current;
 
     socket.on("connect", () => {
@@ -40,39 +35,29 @@ function App() {
     });
 
     socket.on("login_ok", (payload) => {
-      console.log("login_ok", payload);
       setUser(payload);
       setLoggedIn(true);
       setHistory(payload.history || []);
     });
 
-    socket.on("match_status", ({ enabled }) => {
-      setMatchEnabled(enabled);
-    });
+    socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
 
     socket.on("matched", ({ opponent, deskNum }) => {
-      setOpponent(opponent);
-      setDeskNum(deskNum);
+      setDesks(prev => [...prev, { deskNum, opponent }]);
     });
 
-    socket.on("return_to_menu_battle", () => {
-      setOpponent(null);
-      setDeskNum(null);
+    socket.on("return_to_menu_battle", ({ deskNum }) => {
+      setDesks(prev => prev.filter(d => d.deskNum !== deskNum));
     });
 
-    socket.on("history", (hist) => {
-      setHistory(hist);
-    });
+    socket.on("history", (hist) => setHistory(hist));
 
-    socket.on("update_lottery_list", ({ list }) => {
-      setLotteryResults(list);
-    });
+    socket.on("update_lottery_list", ({ list }) => setLotteryResults(list));
 
     socket.on("admin_ok", () => setAdminMode(true));
     socket.on("admin_fail", () => alert("管理者パスワードが違います"));
     socket.on("admin_user_list", (users) => setDesks(users));
 
-    // ハートビート
     heartbeatTimer.current = setInterval(() => {
       if (user?.sessionId) socket.emit("heartbeat", { sessionId: user.sessionId });
     }, 30000);
@@ -89,10 +74,8 @@ function App() {
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
-    const saved = (() => { try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; } })();
-    const sessionId = saved?.sessionId || localStorage.getItem("sessionId");
-    const recentOpponents = saved?.recentOpponents || [];
-    socketRef.current.emit("login", { name: trimmedName, sessionId, recentOpponents, history });
+    const sessionId = localStorage.getItem("sessionId") || undefined;
+    socketRef.current.emit("login", { name: trimmedName, sessionId, recentOpponents: [], history });
   };
 
   const handleAdminLogin = () => {
@@ -103,8 +86,11 @@ function App() {
   const handleLogout = () => {
     if (!window.confirm("ログアウトしますか？")) return;
     socketRef.current.emit("logout");
-    setUser(null); setLoggedIn(false); setOpponent(null); setDeskNum(null);
-    setHistory([]); setName("");
+    setUser(null);
+    setLoggedIn(false);
+    setDesks([]);
+    setHistory([]);
+    setName("");
   };
 
   const handleFindOpponent = () => {
@@ -118,15 +104,13 @@ function App() {
     socketRef.current.emit("cancel_find");
   };
 
-  const handleWinReport = () => {
+  const handleWinReport = (deskNum) => {
     if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
     socketRef.current.emit("report_win_request");
   };
 
   const toggleHistory = () => setHistoryVisible(prev => !prev);
   const toggleLottery = () => setLotteryVisible(prev => !prev);
-  const [historyVisible, setHistoryVisible] = useState(true);
-  const [lotteryVisible, setLotteryVisible] = useState(true);
 
   // -------------------------
   // レンダリング
@@ -167,18 +151,19 @@ function App() {
           </div>
 
           <div className="match-controls">
-            {!opponent ? (
+            {!desks.length ? (
               !searching ? (
                 <button className="main-btn" onClick={handleFindOpponent}>マッチング開始</button>
               ) : (
                 <button className="cancel-btn" onClick={handleCancelSearch}>キャンセル</button>
               )
             ) : (
-              <div className="battle-info">
-                <h3>対戦相手：{opponent.name}</h3>
-                <p>卓番号：{deskNum}</p>
-                <button className="win-btn" onClick={handleWinReport}>勝利報告</button>
-              </div>
+              desks.map(d => (
+                <div key={d.deskNum} className="battle-info">
+                  <h3>卓 {d.deskNum} / 対戦相手: {d.opponent.name}</h3>
+                  <button className="win-btn" onClick={() => handleWinReport(d.deskNum)}>勝利報告</button>
+                </div>
+              ))
             )}
           </div>
 
@@ -187,11 +172,8 @@ function App() {
           </button>
           {historyVisible && (
             <div className="history-section">
-              {history.length === 0 ? <p>対戦履歴なし</p> : (
-                <ul className="history-list">
-                  {history.map((h, i) => <li key={i}>{h.opponent}: {h.result}</li>)}
-                </ul>
-              )}
+              {history.length === 0 ? <p>対戦履歴なし</p> :
+                <ul className="history-list">{history.map((h, i) => <li key={i}>{h.opponent}: {h.result}</li>)}</ul>}
             </div>
           )}
 
@@ -200,13 +182,8 @@ function App() {
           </button>
           {lotteryVisible && (
             <div className="lottery-section">
-              {lotteryResults.length === 0 ? <p>抽選結果なし</p> : (
-                <ul className="lottery-user-history">
-                  {lotteryResults.map((entry, i) => (
-                    <li key={i}>{entry.name}</li>
-                  ))}
-                </ul>
-              )}
+              {lotteryResults.length === 0 ? <p>抽選結果なし</p> :
+                <ul className="lottery-user-history">{lotteryResults.map((entry, i) => <li key={i}>{entry.name}</li>)}</ul>}
             </div>
           )}
 
@@ -235,8 +212,8 @@ function App() {
               <ul className="desk-list">
                 {desks.map((d, i) => (
                   <li key={i}>
-                    <strong>卓 {d.id}</strong>: {d.name}
-                    {/* 勝利報告ボタンは必要に応じて */}
+                    <strong>卓 {d.deskNum}</strong>: {d.opponent?.name || "不明"}
+                    <button className="win-btn" onClick={() => handleWinReport(d.deskNum)}>勝利報告</button>
                   </li>
                 ))}
               </ul>
