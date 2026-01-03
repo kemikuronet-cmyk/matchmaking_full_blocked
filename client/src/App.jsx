@@ -338,27 +338,32 @@ function App() {
     <div className="app">
 
       {/* -------------------- ログイン画面 -------------------- */}
-      {!loggedIn && !adminMode && (
-        <div className="login-container">
-          <h2>ユーザーとしてログイン</h2>
-          <input
-            type="text"
-            placeholder="ユーザー名"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button onClick={handleLogin}>ログイン</button>
+{!loggedIn && !adminMode && (
+  <div className="login-container">
+    <h2>参加者ログイン</h2>
+    <input
+      type="text"
+      placeholder="ユーザー名"
+      value={name}
+      onChange={(e) => setName(e.target.value)}
+    />
+    <button onClick={handleLogin}>ログイン</button>
+  </div>
+)}
 
-          <h3>管理者ログイン</h3>
-          <input
-            type="password"
-            placeholder="管理者パスワード"
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-          />
-          <button onClick={handleAdminLogin}>管理者ログイン</button>
-        </div>
-      )}
+/* 管理者ログインフォームは右上に独立させる */
+{!loggedIn && !adminMode && (
+  <div className="admin-login-form">
+    <h4>管理者ログイン</h4>
+    <input
+      type="password"
+      placeholder="パスワード"
+      value={adminPassword}
+      onChange={(e) => setAdminPassword(e.target.value)}
+    />
+    <button onClick={handleAdminLogin}>ログイン</button>
+  </div>
+)}
 
       {/* -------------------- メイン表示 -------------------- */}
       <div className="main-container">
@@ -450,7 +455,7 @@ function App() {
         {/* ================== ユーザー画面 ================== */}
         {!adminMode && user && (
           <div className="user-menu">
-            <h2>ようこそ {user?.name} さん</h2>
+            <h2> {user?.name} さん</h2>
             <div className="user-stats">
               <p>勝ち：{user?.wins ?? userWins}</p>
               <p>負け：{user?.losses ?? userLosses}</p>
