@@ -1,203 +1,127 @@
-body, html {
+/* 全体背景 */
+body, html, #root {
   margin: 0;
   padding: 0;
   height: 100%;
+  background: url("./images/background.jpg") no-repeat center center fixed;
+  background-size: cover;
   font-family: Arial, sans-serif;
-  background-color: #fff;
-}
-
-.app {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.header {
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  font-weight: bold;
-  font-size: 20px;
-  background-color: #fff;
-  padding: 10px 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-  z-index: 100;
-}
-
-.header .wins {
-  font-size: 14px;
-  margin-top: 2px;
-}
-
-.content {
-  margin-top: 120px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-}
-
-.login-screen, .menu-screen, .battle-screen, .admin-screen {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-}
-
-button {
-  padding: 12px 30px;
-  font-size: 16px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  color: #fff;
-  background-color: blue;
-}
-
-button:hover {
-  opacity: 0.9;
-}
-
-.match-disabled {
-  color: red;
-  font-weight: bold;
-}
-
-.history-modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background-color: #fff;
-  border-radius: 10px;
-  padding: 20px;
-  width: 360px;
-  max-height: 400px;
-  overflow-y: auto;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-  z-index: 200;
-}
-
-.history-modal h3 {
-  margin-bottom: 12px;
-}
-
-.history-modal ul {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 10px 0;
-}
-
-.history-modal li {
-  margin-bottom: 6px;
-  font-size: 14px;
-}
-
-.history-modal button {
-  padding: 8px 20px;
-  border-radius: 6px;
-  border: none;
-  background-color: #f44336;
-  color: #fff;
-  cursor: pointer;
-}
-
-.history-modal button:hover {
-  background-color: #d32f2f;
-}
-
-.admin-screen {
-  width: 400px;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  border: 2px solid #2196F3;
-  border-radius: 10px;
-  padding: 15px;
-  background-color: #e3f2fd;
-}
-
-.admin-screen h3 {
-  margin-bottom: 10px;
-}
-
-.admin-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
-.admin-section input[type="number"] {
-  padding: 6px;
-  width: 80px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-  text-align: center;
-}
-
-.admin-section ul {
-  list-style: none;
-  padding: 0;
-  margin: 5px 0 0 0;
-  width: 100%;
-}
-
-.admin-section li {
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-
-/* battle-screen / menu-screen 個別調整 */
-.menu-screen button, .battle-screen button {
-  width: 220px;
-  text-align: center;
-}
-
-.app {
-  background-color: white;
-  text-align: center;
-  font-family: sans-serif;
-}
-
-.header {
-  font-weight: bold;
-  margin-top: 20px;
-}
-
-.wins {
-  font-size: 0.8em;
-  display: block;
-}
-
-button {
-  background-color: blue;
   color: white;
-  padding: 10px 20px;
-  margin: 10px;
-  border: none;
-  cursor: pointer;
-  font-size: 1em;
 }
 
-button:hover {
-  opacity: 0.8;
-}
-
-.menu-screen, .battle-screen, .admin-screen, .login-screen {
-  margin-top: 50px;
-}
-
-.history-modal {
-  position: fixed;
-  top: 50px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #f9f9f9;
-  border: 1px solid #ccc;
+/* 共通レイアウト */
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
   padding: 20px;
+}
+
+/* 管理者ログイン右上 */
+.admin-login-topright {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0,0,0,0.7);
+  padding: 6px;
+  border-radius: 10px;
+  display: flex;
+  gap: 4px;
+  font-size: 12px;
+  z-index: 10;
+}
+
+.admin-login-topright input {
+  padding: 3px 5px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background: rgba(0,0,0,0.6);
+  color: white;
+}
+
+.admin-login-topright button {
+  padding: 3px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #b22222;
+  color: white;
+}
+
+.admin-login-topright button:hover {
+  background: #d32f2f;
+}
+
+/* ログイン画面中央 */
+.user-login-center {
+  background: rgba(0,0,0,0.7);
+  padding: 30px;
+  border-radius: 10px;
+  text-align: center;
+  z-index: 5;
+}
+
+/* ボタン共通 */
+button {
+  margin: 5px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.main-btn {
+  background: #444;
+  color: white;
+}
+
+.main-btn:hover {
+  background: #666;
+}
+
+.admin-btn {
+  background: #b22222;
+  color: white;
+}
+
+.admin-btn:hover {
+  background: #d32f2f;
+}
+
+/* 管理者画面 */
+.admin-panel {
+  background: rgba(0,0,0,0.8);
+  padding: 20px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 600px;
+  z-index: 15;
+}
+
+/* ユーザー画面 */
+.user-menu {
+  background: rgba(0,0,0,0.8);
+  padding: 20px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 500px;
+  text-align: center;
+  z-index: 10;
+}
+
+/* 入力欄 */
+input {
+  display: block;
+  margin: 10px auto;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #444;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  width: 200px;
 }
