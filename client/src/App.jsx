@@ -13,28 +13,21 @@ const socket = io(SERVER_URL, {
 
 export default function App() {
   // ===============================
-  // 認証状態
+  // 状態
   // ===============================
   const [userName, setUserName] = useState("");
   const [loggedInUser, setLoggedInUser] = useState(null);
 
-  const [adminId, setAdminId] = useState("");
-  const [adminPass, setAdminPass] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // ===============================
-  // 画面状態
-  // ===============================
   const [screen, setScreen] = useState("login");
 
-  // ===============================
-  // マッチング / 卓状態
-  // ===============================
   const [tables, setTables] = useState([]);
   const [history, setHistory] = useState([]);
   const [lotteryWinners, setLotteryWinners] = useState([]);
 
-  const isConnectedRef = useRef(false);
+  const connectedRef = useRef(false);
 
   // ===============================
   // ユーザーログイン
@@ -42,10 +35,10 @@ export default function App() {
   const handleUserLogin = () => {
     if (!userName.trim()) return;
 
-    console.log("🔵 ユーザーログイン:", userName);
+    console.log("🟢 ユーザーログイン要求:", userName);
 
-    socket.emit("user:login", userName, (res) => {
-      console.log("user:login result:", res);
+    socket.emit("loginUser", { name: userName }, (res) => {
+      console.log("loginUser result:", res);
 
       if (res?.success) {
         setLoggedInUser(userName);
@@ -55,25 +48,21 @@ export default function App() {
   };
 
   // ===============================
-  // 管理者ログイン
+  // 管理者ログイン（右上フォーム）
   // ===============================
   const handleAdminLogin = () => {
-    if (!adminId.trim() || !adminPass.trim()) return;
+    if (!adminPassword.trim()) return;
 
-    console.log("🟡 管理者ログイン:", adminId);
+    console.log("🟡 管理者ログイン");
 
-    socket.emit(
-      "admin:login",
-      { id: adminId, pass: adminPass },
-      (res) => {
-        console.log("admin:login result:", res);
+    socket.emit("adminLogin", { pass: adminPassword }, (res) => {
+      console.log("adminLogin result:", res);
 
-        if (res?.success) {
-          setIsAdmin(true);
-          setScreen("admin");
-        }
+      if (res?.success) {
+        setIsAdmin(true);
+        setScreen("admin");
       }
-    );
+    });
   };
 
   // ===============================
@@ -82,66 +71,43 @@ export default function App() {
   const handleEnterMatch = () => {
     if (!loggedInUser) return;
 
-    socket.emit("match:enter", loggedInUser, (res) => {
-      console.log("match:enter result:", res);
-    });
+    socket.emit("enterMatch", loggedInUser);
   };
 
   // ===============================
-  // 対戦終了報告
+  // 勝敗報告
   // ===============================
   const handleReportResult = (tableId, winner) => {
-    socket.emit("match:reportResult", { tableId, winner });
+    socket.emit("reportResult", { tableId, winner });
   };
 
   // ===============================
-  // 抽選開始
+  // 抽選
   // ===============================
   const handleLottery = () => {
-    socket.emit("admin:lottery");
+    socket.emit("runLottery");
   };
 
   // ===============================
-  // ソケット受信
+  // Socket 受信
   // ===============================
   useEffect(() => {
-    if (isConnectedRef.current) return;
-    isConnectedRef.current = true;
+    if (connectedRef.current) return;
+    connectedRef.current = true;
 
-    console.log("🟢 Socket 接続開始");
-
-    socket.on("connect", () => {
-      console.log("🟢 connected:", socket.id);
-    });
-
-    socket.on("tables:update", (data) => {
-      console.log("📦 tables:update", data);
-      setTables(data);
-    });
-
-    socket.on("history:update", (data) => {
-      console.log("📦 history:update", data);
-      setHistory(data);
-    });
-
-    socket.on("lottery:update", (data) => {
-      console.log("📦 lottery:update", data);
-      setLotteryWinners(data);
-    });
-
-    socket.on("disconnect", () => {
-      console.log("🔴 disconnected");
-    });
+    socket.on("tablesUpdate", setTables);
+    socket.on("historyUpdate", setHistory);
+    socket.on("lotteryUpdate", setLotteryWinners);
 
     return () => {
-      socket.off("tables:update");
-      socket.off("history:update");
-      socket.off("lottery:update");
+      socket.off("tablesUpdate");
+      socket.off("historyUpdate");
+      socket.off("lotteryUpdate");
     };
   }, []);
 
   // ===============================
-  // UI : 背景（本番対応 import 方式）
+  // 背景適用
   // ===============================
   const appStyle = {
     minHeight: "100vh",
@@ -152,29 +118,25 @@ export default function App() {
   };
 
   // ==========================================================
-  // 画面 ① ユーザーログイン
+  // ① ログイン画面
   // ==========================================================
   if (screen === "login")
     return (
       <div className="login-screen" style={appStyle}>
+        {/* 🔸 右上小型 管理者ログイン */}
         <div className="admin-login-topright">
           <input
-            type="text"
-            value={adminId}
-            placeholder="Admin ID"
-            onChange={(e) => setAdminId(e.target.value)}
-          />
-          <input
             type="password"
-            value={adminPass}
-            placeholder="Password"
-            onChange={(e) => setAdminPass(e.target.value)}
+            value={adminPassword}
+            placeholder="管理者パスワード"
+            onChange={(e) => setAdminPassword(e.target.value)}
           />
           <button className="admin-btn" onClick={handleAdminLogin}>
             管理者
           </button>
         </div>
 
+        {/* 🔹 中央 ユーザーログイン */}
         <div className="user-login-center">
           <h2>ユーザーログイン</h2>
 
@@ -193,12 +155,12 @@ export default function App() {
     );
 
   // ==========================================================
-  // 画面 ② ユーザーメニュー
+  // ② ユーザーメニュー
   // ==========================================================
   if (screen === "menu")
     return (
       <div className="menu-screen" style={appStyle}>
-        <div className="header">ようこそ {loggedInUser} さん</div>
+        <div className="header">{loggedInUser} さん</div>
 
         <button className="main-btn" onClick={handleEnterMatch}>
           マッチング参加
@@ -208,19 +170,11 @@ export default function App() {
           <h3>対戦履歴</h3>
 
           <table>
-            <thead>
-              <tr>
-                <th>卓ID</th>
-                <th>勝者</th>
-              </tr>
-            </thead>
             <tbody>
               {history.map((h, i) => (
                 <tr key={i}>
                   <td>{h.tableId}</td>
-                  <td className={h.result === "win" ? "win" : "lose"}>
-                    {h.winner}
-                  </td>
+                  <td>{h.winner}</td>
                 </tr>
               ))}
             </tbody>
@@ -230,8 +184,8 @@ export default function App() {
         <button
           className="main-btn"
           onClick={() => {
-            setLoggedInUser(null);
             setScreen("login");
+            setLoggedInUser(null);
           }}
         >
           ログアウト
@@ -240,7 +194,7 @@ export default function App() {
     );
 
   // ==========================================================
-  // 画面 ③ 管理者画面
+  // ③ 管理者画面
   // ==========================================================
   if (screen === "admin")
     return (
@@ -248,25 +202,22 @@ export default function App() {
         <div className="header">管理者メニュー</div>
 
         <div className="admin-section">
-          <h3>対戦卓一覧</h3>
+          <h3>対戦卓</h3>
 
-          {tables.map((table) => (
-            <div key={table.id} className="battle-screen">
-              <div>卓ID: {table.id}</div>
-              <div>
-                {table.players?.join(" vs ")}
-              </div>
+          {tables.map((t) => (
+            <div key={t.id} className="battle-screen">
+              <div>{t.players?.join(" vs ")}</div>
 
               <button
                 className="admin-btn"
-                onClick={() => handleReportResult(table.id, table.players[0])}
+                onClick={() => handleReportResult(t.id, t.players[0])}
               >
                 左側勝利
               </button>
 
               <button
                 className="admin-btn"
-                onClick={() => handleReportResult(table.id, table.players[1])}
+                onClick={() => handleReportResult(t.id, t.players[1])}
               >
                 右側勝利
               </button>
@@ -275,10 +226,10 @@ export default function App() {
         </div>
 
         <div className="admin-section">
-          <h3>抽選機能</h3>
+          <h3>抽選</h3>
 
           <button className="admin-btn" onClick={handleLottery}>
-            抽選を実行
+            抽選実行
           </button>
 
           <div className="lottery-list">
@@ -291,8 +242,8 @@ export default function App() {
         <button
           className="main-btn"
           onClick={() => {
-            setIsAdmin(false);
             setScreen("login");
+            setIsAdmin(false);
           }}
         >
           ログアウト
@@ -300,6 +251,5 @@ export default function App() {
       </div>
     );
 
-  // fallback
   return null;
 }
