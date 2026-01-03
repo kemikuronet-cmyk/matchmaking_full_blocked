@@ -1,63 +1,61 @@
-/* 全体背景 */
+/* =========================
+   全体背景
+========================= */
 body, html, #root {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: url("./images/background.jpg") no-repeat center center fixed;
-  background-size: cover;
   font-family: Arial, sans-serif;
   color: white;
+  background: url("./images/background.jpg") no-repeat center center fixed;
+  background-size: cover;
 }
 
-/* 共通レイアウト */
+/* =========================
+   共通レイアウト
+========================= */
 .app {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   padding: 20px;
-  position: relative;
 }
 
-/* ユーザーログイン中央 */
-.user-login-center {
-  background: rgba(0,0,0,0.7);
-  padding: 20px;
-  border-radius: 10px;
-  text-align: center;
-}
-
-/* 右上管理者ログイン */
+/* =========================
+   管理者ログイン右上
+========================= */
 .admin-login-topright {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 15px;
+  right: 15px;
   background: rgba(0,0,0,0.7);
   padding: 6px;
-  border-radius: 10px;
+  border-radius: 8px;
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
-  z-index: 10;
+  font-size: 12px;
+  z-index: 100;
 }
 
 .admin-login-topright input {
-  padding: 3px 5px;
-  font-size: 10px;
+  padding: 4px 6px;
+  font-size: 12px;
   border-radius: 4px;
   border: 1px solid #444;
   background: rgba(0,0,0,0.6);
   color: white;
-  width: 80px;
+  width: 100px;
 }
 
 .admin-login-topright button {
-  padding: 3px 6px;
-  font-size: 10px;
+  padding: 4px 8px;
+  font-size: 12px;
   border-radius: 4px;
+  border: none;
   cursor: pointer;
   background: #b22222;
   color: white;
@@ -67,8 +65,18 @@ body, html, #root {
   background: #d32f2f;
 }
 
-/* 入力欄 */
-input {
+/* =========================
+   ユーザーログイン
+========================= */
+.user-login-center {
+  background: rgba(0,0,0,0.7);
+  padding: 20px;
+  border-radius: 10px;
+  margin-top: 100px;
+  text-align: center;
+}
+
+.user-login-center input {
   display: block;
   margin: 10px auto;
   padding: 8px;
@@ -79,53 +87,130 @@ input {
   width: 200px;
 }
 
-/* ボタン */
-button {
-  margin: 5px;
+.user-login-center button {
+  margin: 10px;
   padding: 10px 20px;
   border: none;
   border-radius: 8px;
-  cursor: pointer;
   font-weight: bold;
-}
-
-.main-btn {
+  cursor: pointer;
   background: #444;
   color: white;
 }
 
-.main-btn:hover {
+.user-login-center button:hover {
   background: #666;
 }
 
-/* 管理者メニュー */
+/* =========================
+   ユーザーメニュー
+========================= */
+.menu-screen {
+  background: rgba(0,0,0,0.6);
+  border-radius: 10px;
+  padding: 20px;
+  width: 300px;
+  text-align: center;
+}
+
+.menu-screen button {
+  margin: 8px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  background: #444;
+  color: white;
+}
+
+.menu-screen button:hover {
+  background: #666;
+}
+
+/* =========================
+   管理者パネル
+========================= */
 .admin-panel {
   background: rgba(0,0,0,0.7);
-  padding: 15px;
-  border-radius: 10px;
-  width: 90%;
-  max-width: 600px;
+  padding: 20px;
+  border-radius: 12px;
+  width: 400px;
+  text-align: center;
 }
 
-.admin-controls button {
-  margin: 5px;
+.admin-panel button {
+  margin: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  background: #b22222;
+  color: white;
 }
 
-/* 卓一覧 */
-.desk-section ul {
+.admin-panel button:hover {
+  background: #d32f2f;
+}
+
+/* =========================
+   履歴・抽選リスト
+========================= */
+.menu-screen ul,
+.admin-panel ul {
   list-style: none;
   padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 8px 0;
 }
 
-.desk-section li {
-  margin: 5px 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.menu-screen li,
+.admin-panel li {
+  padding: 4px 6px;
+  border-bottom: 1px solid #555;
 }
 
-/* 抽選履歴 */
-.lottery-history ul {
-  list-style: none;
-  padding: 0;
+/* =========================
+   抽選結果
+========================= */
+.menu-screen .lottery-list,
+.admin-panel .lottery-list {
+  color: yellow;
+  margin-top: 10px;
+}
+
+/* =========================
+   汎用入力欄
+========================= */
+input {
+  display: block;
+  margin: 6px auto;
+  padding: 6px;
+  border-radius: 5px;
+  border: 1px solid #444;
+  background: rgba(0,0,0,0.6);
+  color: white;
+}
+
+/* =========================
+   汎用ボタン
+========================= */
+button.main-btn {
+  background: #444;
+  color: white;
+}
+
+button.main-btn:hover {
+  background: #666;
+}
+
+button.admin-btn {
+  background: #b22222;
+  color: white;
+}
+
+button.admin-btn:hover {
+  background: #d32f2f;
 }
