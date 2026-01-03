@@ -11,7 +11,7 @@ body, html {
 .app-bg {
   min-height: 100vh;
   width: 100%;
-  background-image: url("/background.jpg");
+  background-image: url("client/src/images/background.jpg");
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
