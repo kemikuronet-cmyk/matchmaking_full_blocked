@@ -156,9 +156,26 @@ button {
   max-width: 600px;
 }
 
-/* -----------------------
+.admin-controls button {
+  margin-right: 5px;
+}
+
+/* =======================
+   ユーザー画面
+   ======================= */
+.user-menu, .battle-info, .lottery-admin-section, .desk-section {
+  width: 100%;
+  max-width: 600px;
+  margin: 10px auto;
+}
+
+.user-stats p {
+  margin: 5px 0;
+}
+
+/* =======================
    対戦履歴
-   ----------------------- */
+   ======================= */
 .history-list {
   margin-top: 20px;
   width: 100%;
@@ -184,19 +201,17 @@ button {
   font-weight: bold;
 }
 
-/* -----------------------
+/* =======================
    抽選関連
-   ----------------------- */
+   ======================= */
 .lottery-user-history, .lottery-list {
   margin-top: 15px;
   color: yellow;
 }
 
-/* -----------------------
-   その他調整
-   ----------------------- */
-.user-menu, .battle-info, .lottery-admin-section {
-  width: 100%;
-  max-width: 600px;
-  margin: 10px auto;
+/* =======================
+   テーブル・リスト共通
+   ======================= */
+ul {
+  padding-left: 0;
 }
