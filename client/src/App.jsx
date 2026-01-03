@@ -1,108 +1,91 @@
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
-import "./App.css";
 
-const SERVER_URL = "wss://kemikurohuanibentorandamumatsuchingutsur.onrender.com";
+const SERVER_URL = "/"; // 本番は同ドメイン
+const AUTO_RECONNECT_INTERVAL = 30000; // 30秒
 
-const socket = io(SERVER_URL, {
-  transports: ["websocket"],
-  autoConnect: false,
-});
+const socket = io(SERVER_URL, { autoConnect: false });
 
 function App() {
   // -------------------------
-  // State
+  // 状態管理
   // -------------------------
-  const [name, setName] = useState("");
   const [user, setUser] = useState(null);
-  const [history, setHistory] = useState([]);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [opponent, setOpponent] = useState(null);
-  const [deskNum, setDeskNum] = useState(null);
-  const [searching, setSearching] = useState(false);
-
+  const [name, setName] = useState("");
   const [adminMode, setAdminMode] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
-  const [desks, setDesks] = useState([]);
+  const [matchEnabled, setMatchEnabled] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [opponent, setOpponent] = useState(null);
+  const [deskNum, setDeskNum] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [lotteryHistory, setLotteryHistory] = useState([]);
+  const [lotteryResults, setLotteryResults] = useState([]);
   const [lotteryTitle, setLotteryTitle] = useState("");
   const [lotteryCount, setLotteryCount] = useState(1);
-  const [lotteryResults, setLotteryResults] = useState([]);
-  const [lotteryHistory, setLotteryHistory] = useState([]);
 
   const heartbeatTimer = useRef(null);
   const reconnectIntervalRef = useRef(null);
 
   // -------------------------
-  // Socket.io 接続
+  // 初回接続 & heartbeat
   // -------------------------
   useEffect(() => {
     socket.connect();
-    console.log("[SOCKET] connecting...");
 
-    // -------------------------
-    // イベントリスナー
-    // -------------------------
-    const onConnect = () => console.log("[SOCKET] connected");
-    const onDisconnect = (reason) =>
-      console.log("[SOCKET] disconnected", reason);
+    socket.on("connect", () => {
+      console.log("✅ Connected to server", socket.id);
+      if (user?.sessionId) {
+        socket.emit("login", {
+          name: user.name,
+          sessionId: user.sessionId,
+          recentOpponents: user.recentOpponents,
+          history: user.history,
+        });
+      }
+    });
 
-    const onLoginOk = (data) => {
-      console.log("[SOCKET] login_ok:", data);
-      setUser(data.user || {});
-      setHistory(data.history || []);
+    socket.on("disconnect", () => {
+      console.log("❌ Disconnected");
+    });
+
+    socket.on("login_ok", (data) => {
+      console.log("login_ok", data);
+      setUser(data);
       setLoggedIn(true);
-    };
+      setHistory(data.history || []);
+    });
 
-    const onMatched = (data) => {
-      console.log("[SOCKET] matched:", data);
-      setOpponent(data.opponent);
-      setDeskNum(data.deskNum);
+    socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
+    socket.on("matched", ({ opponent, deskNum }) => {
+      setOpponent(opponent);
+      setDeskNum(deskNum);
       setSearching(false);
-    };
-
-    const onReturnToMenu = () => {
-      console.log("[SOCKET] return_to_menu_battle");
+    });
+    socket.on("return_to_menu_battle", () => {
       setOpponent(null);
       setDeskNum(null);
-      setSearching(false);
-    };
+    });
+    socket.on("history", (h) => setHistory(h));
+    socket.on("update_lottery_list", ({ list }) => setLotteryResults(list));
+    socket.on("lottery_winner", ({ title }) => alert(`抽選「${title}」で当選しました！`));
+    socket.on("admin_lottery_history", (history) => setLotteryHistory(history));
 
-    const onLotteryWinner = (data) => {
-      console.log("[SOCKET] lottery_winner:", data);
-      setLotteryResults((prev) => [...prev, data]);
-      setLotteryHistory((prev) => [...prev, data]);
-    };
+    heartbeatTimer.current = setInterval(() => {
+      if (user?.sessionId) socket.emit("heartbeat", { sessionId: user.sessionId });
+    }, 30000);
 
-    // 管理者イベント
-    const onAdminOk = () => setAdminMode(true);
-    const onAdminActiveMatches = (data) => setDesks(data);
-    const onAdminLotteryHistory = (data) => setLotteryHistory(data);
-
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-    socket.on("login_ok", onLoginOk);
-    socket.on("matched", onMatched);
-    socket.on("return_to_menu_battle", onReturnToMenu);
-    socket.on("lottery_winner", onLotteryWinner);
-    socket.on("admin_ok", onAdminOk);
-    socket.on("admin_active_matches", onAdminActiveMatches);
-    socket.on("admin_lottery_history", onAdminLotteryHistory);
+    reconnectIntervalRef.current = setInterval(() => {
+      if (!socket.connected) socket.connect();
+    }, AUTO_RECONNECT_INTERVAL);
 
     return () => {
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
-      socket.off("login_ok", onLoginOk);
-      socket.off("matched", onMatched);
-      socket.off("return_to_menu_battle", onReturnToMenu);
-      socket.off("lottery_winner", onLotteryWinner);
-      socket.off("admin_ok", onAdminOk);
-      socket.off("admin_active_matches", onAdminActiveMatches);
-      socket.off("admin_lottery_history", onAdminLotteryHistory);
-
+      socket.off();
       if (heartbeatTimer.current) clearInterval(heartbeatTimer.current);
       if (reconnectIntervalRef.current) clearInterval(reconnectIntervalRef.current);
     };
-  }, []);
+  }, [user]);
 
   // -------------------------
   // ハンドラ
@@ -110,30 +93,42 @@ function App() {
   const handleLogin = () => {
     const trimmedName = name.trim();
     if (!trimmedName) return alert("ユーザー名を入力してください");
-    console.log("[ACTION] login emit:", trimmedName);
-    socket.emit("login", { name: trimmedName });
+    const saved = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("user") || "{}");
+      } catch {
+        return {};
+      }
+    })();
+    const sessionId = saved?.sessionId || localStorage.getItem("sessionId");
+    const recentOpponents = saved?.recentOpponents || [];
+    socket.emit("login", { name: trimmedName, sessionId, recentOpponents, history });
   };
 
   const handleAdminLogin = () => {
     if (!adminPassword) return;
     socket.emit("admin_login", { password: adminPassword });
+    socket.on("admin_ok", () => setAdminMode(true));
+    socket.on("admin_fail", () => alert("管理者パスワードが間違っています"));
   };
 
   const handleLogout = () => {
     if (!window.confirm("ログアウトしますか？")) return;
     socket.emit("logout");
+    localStorage.clear();
     setUser(null);
     setLoggedIn(false);
+    setSearching(false);
     setOpponent(null);
     setDeskNum(null);
     setHistory([]);
+    setLotteryHistory([]);
+    setLotteryResults([]);
     setName("");
-    setSearching(false);
-    setAdminMode(false);
   };
 
   const handleFindOpponent = () => {
-    if (!user) return alert("ログインしてください");
+    if (!matchEnabled) return;
     setSearching(true);
     socket.emit("find_opponent");
   };
@@ -148,174 +143,122 @@ function App() {
     socket.emit("report_win_request");
   };
 
-  const handleFetchDesks = () => socket.emit("admin_get_active_matches");
-  const handleRunLottery = () => socket.emit("admin_draw_lots", { count: lotteryCount, title: lotteryTitle });
-  const handleAdminWin = (deskNum) => socket.emit("admin_report_win", { deskNum });
-
-  // -------------------------
-  // ユーザー集計
-  // -------------------------
-  const userWins = (history || []).filter((h) => h.result === "WIN").length;
-  const userLosses = (history || []).filter((h) => h.result === "LOSE").length;
-  const userMatches = (history || []).length;
+  const drawLottery = (count, minBattles, minLoginMinutes, title) => {
+    socket.emit("admin_draw_lots", { count, minBattles, minLoginMinutes, title });
+  };
 
   // -------------------------
   // JSX
   // -------------------------
   return (
     <div className="app">
-      {/* -------------------- 管理者ログイン右上 -------------------- */}
+      {/* 背景はCSSで制御 */}
+
+      {/* 管理者ログイン右上 */}
       {!adminMode && (
         <div className="admin-login-topright">
           <input
             type="password"
-            placeholder="管理者パスワード"
+            placeholder="Admin Pass"
             value={adminPassword}
             onChange={(e) => setAdminPassword(e.target.value)}
           />
-          <button onClick={handleAdminLogin}>Admin Login</button>
+          <button onClick={handleAdminLogin}>Admin</button>
         </div>
       )}
 
-      {/* -------------------- ログイン画面 -------------------- */}
-      {!loggedIn && !adminMode && (
+      {/* ユーザーログイン */}
+      {!loggedIn && (
         <div className="user-login-center">
-          <h2>ユーザーログイン</h2>
+          <h2>ユーザー ログイン</h2>
           <input
             type="text"
             placeholder="ユーザー名"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <button className="main-btn" onClick={handleLogin}>
+          <button onClick={handleLogin} className="main-btn">
             ログイン
           </button>
         </div>
       )}
 
-      {/* -------------------- ユーザーメニュー -------------------- */}
-      {loggedIn && (
-        <div className="user-menu">
-          <h2>ようこそ {user?.name || "ユーザー"} さん</h2>
-
-          <div className="user-stats">
-            <p>勝ち：{user?.wins ?? userWins}</p>
-            <p>負け：{user?.losses ?? userLosses}</p>
-            <p>対戦数：{user?.totalBattles ?? userMatches}</p>
-          </div>
+      {/* ユーザーメニュー */}
+      {loggedIn && user && !adminMode && (
+        <div className="menu-screen">
+          <h2>ようこそ {user.name} さん</h2>
+          <p>勝ち: {user.wins || 0}</p>
+          <p>負け: {user.losses || 0}</p>
+          <p>対戦数: {user.totalBattles || 0}</p>
 
           {!opponent && !deskNum && (
-            <div className="match-controls">
+            <div>
               {!searching ? (
-                <button className="main-btn" onClick={handleFindOpponent}>
+                <button onClick={handleFindOpponent} className="main-btn">
                   マッチング開始
                 </button>
               ) : (
-                <button className="cancel-btn" onClick={handleCancelSearch}>
-                  キャンセル
+                <button onClick={handleCancelSearch} className="main-btn">
+                  検索キャンセル
                 </button>
               )}
             </div>
           )}
 
           {opponent && (
-            <div className="battle-info">
-              <h3>対戦相手：{opponent?.name}</h3>
-              <p>卓番号：{deskNum}</p>
-              <button className="win-btn" onClick={handleWinReport}>
+            <div>
+              <h3>対戦相手: {opponent.name}</h3>
+              <p>卓番号: {deskNum}</p>
+              <button onClick={handleWinReport} className="main-btn">
                 勝利報告
               </button>
             </div>
           )}
 
-          <div className="history-section">
+          <div>
             <h3>対戦履歴</h3>
-            {history.length === 0 ? (
-              <p>対戦履歴がありません</p>
-            ) : (
-              <ul className="history-list">
+            {history.length === 0 ? <p>履歴なし</p> : (
+              <ul>
                 {history.map((h, i) => (
+                  <li key={i}>{h.opponent}: {h.result}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div>
+            <h3>抽選履歴</h3>
+            {lotteryHistory.length === 0 ? <p>なし</p> : (
+              <ul>
+                {lotteryHistory.map((rec, i) => (
                   <li key={i}>
-                    <strong>{h.opponent}</strong>：{h.result}
+                    {rec.title} ({new Date(rec.time).toLocaleString()}): {rec.winners.map(w => w.name).join(", ")}
                   </li>
                 ))}
               </ul>
             )}
           </div>
 
-          <div style={{ textAlign: "center", marginTop: 10 }}>
-            <button className="main-btn" onClick={handleLogout}>
-              ログアウト
-            </button>
-          </div>
+          <button onClick={handleLogout} className="main-btn">ログアウト</button>
         </div>
       )}
 
-      {/* -------------------- 管理者メニュー -------------------- */}
+      {/* 管理者画面 */}
       {adminMode && (
         <div className="admin-panel">
           <h2>管理者メニュー</h2>
-
-          <div className="admin-controls">
-            <button onClick={handleFetchDesks}>卓一覧を更新</button>
+          <div>
+            <h3>抽選履歴</h3>
+            <ul>
+              {lotteryHistory.map((rec, i) => (
+                <li key={i}>
+                  {rec.title} ({new Date(rec.time).toLocaleString()}): {rec.winners.map(w => w.name).join(", ")}
+                </li>
+              ))}
+            </ul>
+            <button onClick={() => drawLottery(1, 0, 0, "抽選テスト")}>抽選実行</button>
           </div>
-
-          <div className="desk-section">
-            <h3>対戦卓一覧</h3>
-            {desks.length === 0 ? (
-              <p>現在、稼働中の卓はありません</p>
-            ) : (
-              <ul className="desk-list">
-                {desks.map((d, i) => (
-                  <li key={i}>
-                    <strong>卓 {d.deskNum}</strong>：{d.players?.map((p) => p.name).join(" vs ")}
-                    <button onClick={() => handleAdminWin(d.deskNum)}>勝者登録</button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="lottery-admin-section">
-            <h3>抽選機能</h3>
-            <input
-              type="text"
-              placeholder="抽選タイトル"
-              value={lotteryTitle}
-              onChange={(e) => setLotteryTitle(e.target.value)}
-            />
-            <input
-              type="number"
-              placeholder="当選人数"
-              value={lotteryCount}
-              onChange={(e) => setLotteryCount(Number(e.target.value))}
-            />
-            <button onClick={handleRunLottery}>抽選を実行</button>
-
-            <div className="lottery-history">
-              <h4>抽選履歴</h4>
-              {lotteryHistory.length === 0 ? (
-                <p>抽選履歴なし</p>
-              ) : (
-                <ul>
-                  {lotteryHistory.map((lot, idx) => (
-                    <li key={idx}>
-                      <strong>{lot.title}</strong>
-                      <ul>
-                        {lot.winners?.map((w, i) => (
-                          <li key={i}>{w.name}</li>
-                        ))}
-                      </ul>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-
-          <button className="logout-btn" onClick={handleLogout}>
-            ログアウト
-          </button>
+          <button onClick={() => setAdminMode(false)} className="main-btn">ログアウト</button>
         </div>
       )}
     </div>
