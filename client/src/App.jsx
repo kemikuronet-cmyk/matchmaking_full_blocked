@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
+import "./App.css";
 
 // サーバーURL（本番用）
 const SERVER_URL = "/";
