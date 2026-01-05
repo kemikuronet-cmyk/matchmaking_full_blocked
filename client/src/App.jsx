@@ -81,9 +81,15 @@ export default function App() {
 
     socket.on("history", (hist) => setHistory(hist));
 
-    socket.on("match_status", ({ enabled, status }) => {
+    // 管理者がマッチング操作した場合にユーザー画面をリアルタイム更新
+    socket.on("match_status_update", ({ enabled, status }) => {
       setMatchEnabled(enabled);
       setAdminMatchStatus(status);
+    });
+
+    // 抽選結果をリアルタイムに追加
+    socket.on("admin_lottery_result", ({ title, winners }) => {
+      setLotteryHistory(prev => [...prev, { title, time: Date.now(), winners }]);
     });
 
     // 管理者
@@ -110,7 +116,7 @@ export default function App() {
   }, []);
 
   // ------------------------
-  // ハンドラ
+  // ユーザーハンドラ
   // ------------------------
   const handleLogin = () => {
     const trimmed = name.trim();
@@ -158,23 +164,16 @@ export default function App() {
   };
 
   // ------------------------
-  // 管理者マッチング操作
+  // 管理者操作
   // ------------------------
   const adminStartMatching = () => {
-    setAdminMatchStatus("マッチング中");
-    setMatchEnabled(true);
     socketRef.current.emit("admin_enable_matching");
   };
 
   const adminStopMatching = () => {
-    setAdminMatchStatus("停止中");
-    setMatchEnabled(false);
     socketRef.current.emit("admin_disable_matching");
   };
 
-  // ------------------------
-  // 管理者抽選操作
-  // ------------------------
   const adminRunLottery = () => {
     if (!lotteryTitle || lotteryCount <= 0) return alert("タイトルと人数を正しく設定してください");
     socketRef.current.emit("admin_run_lottery", { title: lotteryTitle, count: lotteryCount });
@@ -339,7 +338,8 @@ export default function App() {
             <ul className="lottery-list">
               {lotteryHistory.map((rec, i) => (
                 <li key={i}>
-                  {rec.title}（{new Date(rec.time).toLocaleString()}）：{rec.winners?.map(w => w.name).join(", ")}
+                  {rec.title}（{new Date(rec.time).toLocaleString()}）：
+                  {rec.winners?.map(w => w.name).join(", ")}
                 </li>
               ))}
             </ul>
