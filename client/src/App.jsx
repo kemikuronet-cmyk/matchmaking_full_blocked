@@ -45,6 +45,7 @@ export default function App() {
 
     socket.on("connect", () => console.log("✅ Connected:", socket.id));
 
+    // ログイン成功
     socket.on("login_ok", (data) => {
       setUser({ name: data.name, id: data.id, sessionId: data.sessionId });
       setName(data.name);
@@ -67,6 +68,7 @@ export default function App() {
       } catch {}
     });
 
+    // マッチング成功
     socket.on("matched", ({ opponent, deskNum }) => {
       setOpponent(opponent);
       setDeskNum(deskNum);
@@ -81,15 +83,22 @@ export default function App() {
 
     socket.on("history", (hist) => setHistory(hist));
 
-    // 管理者がマッチング操作した場合にユーザー画面をリアルタイム更新
+    // ------------------------
+    // 管理者操作のリアルタイム反映
+    // ------------------------
     socket.on("match_status_update", ({ enabled, status }) => {
       setMatchEnabled(enabled);
       setAdminMatchStatus(status);
     });
 
-    // 抽選結果をリアルタイムに追加
+    // ------------------------
+    // 抽選結果のリアルタイム反映
+    // ------------------------
     socket.on("admin_lottery_result", ({ title, winners }) => {
-      setLotteryHistory(prev => [...prev, { title, time: Date.now(), winners }]);
+      setLotteryHistory((prev) => [
+        ...prev,
+        { title, time: Date.now(), winners },
+      ]);
     });
 
     // 管理者
@@ -98,11 +107,18 @@ export default function App() {
     socket.on("admin_active_matches", (list) => setDesks(list));
     socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
 
+    // ------------------------
+    // heartbeat
+    // ------------------------
     heartbeatTimer.current = setInterval(() => {
       const userData = JSON.parse(localStorage.getItem("user") || "{}");
-      if (userData?.sessionId) socket.emit("heartbeat", { sessionId: userData.sessionId });
+      if (userData?.sessionId)
+        socket.emit("heartbeat", { sessionId: userData.sessionId });
     }, 30000);
 
+    // ------------------------
+    // localStorage復元
+    // ------------------------
     const saved = JSON.parse(localStorage.getItem("user") || "{}");
     if (saved?.name && saved?.sessionId) {
       setName(saved.name);
@@ -175,8 +191,12 @@ export default function App() {
   };
 
   const adminRunLottery = () => {
-    if (!lotteryTitle || lotteryCount <= 0) return alert("タイトルと人数を正しく設定してください");
-    socketRef.current.emit("admin_run_lottery", { title: lotteryTitle, count: lotteryCount });
+    if (!lotteryTitle || lotteryCount <= 0)
+      return alert("タイトルと人数を正しく設定してください");
+    socketRef.current.emit("admin_run_lottery", {
+      title: lotteryTitle,
+      count: lotteryCount,
+    });
     setLotteryTitle("");
     setLotteryCount(1);
   };
@@ -238,35 +258,38 @@ export default function App() {
 
           <button className="main-btn" onClick={handleLogout}>ログアウト</button>
 
-          {history.length > 0 && (
-            <div className="history-list">
-              <h3>対戦履歴</h3>
-              <table>
-                <thead>
-                  <tr>
-                    <th>対戦相手</th>
-                    <th>結果</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((h, i) => (
-                    <tr key={i} className={h.result === "勝ち" ? "win" : "lose"}>
-                      <td>{h.opponent}</td>
-                      <td>{h.result}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {/* 対戦履歴 */}
+          <details style={{ marginTop: 10 }}>
+            <summary>対戦履歴</summary>
+            {history.length === 0 ? <p>対戦履歴なし</p> : (
+              <ul>
+                {history.map((h, i) => <li key={i}><strong>{h.opponent}</strong>：{h.result}</li>)}
+              </ul>
+            )}
+          </details>
 
+          {/* 抽選履歴 */}
+          <details style={{ marginTop: 10 }}>
+            <summary>抽選履歴</summary>
+            {lotteryHistory.length === 0 ? <p>抽選履歴なし</p> : (
+              <ul>
+                {lotteryHistory.map((entry, idx) => (
+                  <li key={idx}>
+                    <strong>{entry.title}</strong>
+                    <ul>
+                      {entry.winners?.map((w, i) => <li key={i}>{w.name}</li>)}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </details>
         </div>
       )}
 
       {/* 管理者画面 */}
       {adminMode && (
         <div className="admin-screen">
-
           <h2>管理者メニュー</h2>
           <div className="button-row">
             <button className="admin-btn" onClick={() => setAdminMode(false)}>ログアウト</button>
@@ -347,7 +370,6 @@ export default function App() {
 
         </div>
       )}
-
     </div>
   );
 }
