@@ -35,6 +35,7 @@ export default function App() {
   // ------------------------
   const [lotteryTitle, setLotteryTitle] = useState("");
   const [lotteryCount, setLotteryCount] = useState(1);
+  const [currentWinners, setCurrentWinners] = useState([]);
 
   // ------------------------
   // 初回マウント
@@ -89,16 +90,23 @@ export default function App() {
     socket.on("match_status_update", ({ enabled, status }) => {
       setMatchEnabled(enabled);
       setAdminMatchStatus(status);
+      // ユーザー側検索中ならキャンセル表示に
+      if (!enabled) setSearching(false);
     });
 
     // ------------------------
     // 抽選結果のリアルタイム反映
     // ------------------------
+    socket.on("update_lottery_list", ({ list }) => {
+      setCurrentWinners(list || []);
+    });
+
     socket.on("admin_lottery_result", ({ title, winners }) => {
       setLotteryHistory((prev) => [
         ...prev,
         { title, time: Date.now(), winners },
       ]);
+      setCurrentWinners(winners);
     });
 
     // 管理者
@@ -183,17 +191,17 @@ export default function App() {
   // 管理者操作
   // ------------------------
   const adminStartMatching = () => {
-    socketRef.current.emit("admin_enable_matching");
+    socketRef.current.emit("admin_toggle_match", { enable: true });
   };
 
   const adminStopMatching = () => {
-    socketRef.current.emit("admin_disable_matching");
+    socketRef.current.emit("admin_toggle_match", { enable: false });
   };
 
   const adminRunLottery = () => {
     if (!lotteryTitle || lotteryCount <= 0)
       return alert("タイトルと人数を正しく設定してください");
-    socketRef.current.emit("admin_run_lottery", {
+    socketRef.current.emit("admin_draw_lots", {
       title: lotteryTitle,
       count: lotteryCount,
     });
@@ -271,7 +279,7 @@ export default function App() {
           {/* 抽選履歴 */}
           <details style={{ marginTop: 10 }}>
             <summary>抽選履歴</summary>
-            {lotteryHistory.length === 0 ? <p>抽選履歴なし</p> : (
+            {currentWinners.length === 0 && lotteryHistory.length === 0 ? <p>抽選履歴なし</p> : (
               <ul>
                 {lotteryHistory.map((entry, idx) => (
                   <li key={idx}>
@@ -281,6 +289,12 @@ export default function App() {
                     </ul>
                   </li>
                 ))}
+                {currentWinners.length > 0 && (
+                  <li>
+                    <strong>最新当選者</strong>
+                    <ul>{currentWinners.map((w, i) => <li key={i}>{w.name}</li>)}</ul>
+                  </li>
+                )}
               </ul>
             )}
           </details>
@@ -367,7 +381,6 @@ export default function App() {
               ))}
             </ul>
           </div>
-
         </div>
       )}
     </div>
