@@ -9,7 +9,7 @@ export default function App() {
   const heartbeatTimer = useRef(null);
 
   // ------------------------
-  // ステート
+  // ユーザー・管理者ステート
   // ------------------------
   const [user, setUser] = useState(null);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -23,7 +23,18 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState("");
   const [desks, setDesks] = useState([]);
   const [lotteryHistory, setLotteryHistory] = useState([]);
+
+  // ------------------------
+  // マッチング状態
+  // ------------------------
+  const [adminMatchStatus, setAdminMatchStatus] = useState("停止中"); // "停止中" / "マッチング中"
   const [matchEnabled, setMatchEnabled] = useState(false);
+
+  // ------------------------
+  // 抽選状態
+  // ------------------------
+  const [lotteryTitle, setLotteryTitle] = useState("");
+  const [lotteryCount, setLotteryCount] = useState(1);
 
   // ------------------------
   // 初回マウント
@@ -70,8 +81,12 @@ export default function App() {
 
     socket.on("history", (hist) => setHistory(hist));
 
-    socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
+    socket.on("match_status", ({ enabled, status }) => {
+      setMatchEnabled(enabled);
+      setAdminMatchStatus(status);
+    });
 
+    // 管理者
     socket.on("admin_ok", () => setAdminMode(true));
     socket.on("admin_fail", () => alert("管理者パスワードが違います"));
     socket.on("admin_active_matches", (list) => setDesks(list));
@@ -143,7 +158,32 @@ export default function App() {
   };
 
   // ------------------------
-  // メイン JSX
+  // 管理者マッチング操作
+  // ------------------------
+  const adminStartMatching = () => {
+    setAdminMatchStatus("マッチング中");
+    setMatchEnabled(true);
+    socketRef.current.emit("admin_enable_matching");
+  };
+
+  const adminStopMatching = () => {
+    setAdminMatchStatus("停止中");
+    setMatchEnabled(false);
+    socketRef.current.emit("admin_disable_matching");
+  };
+
+  // ------------------------
+  // 管理者抽選操作
+  // ------------------------
+  const adminRunLottery = () => {
+    if (!lotteryTitle || lotteryCount <= 0) return alert("タイトルと人数を正しく設定してください");
+    socketRef.current.emit("admin_run_lottery", { title: lotteryTitle, count: lotteryCount });
+    setLotteryTitle("");
+    setLotteryCount(1);
+  };
+
+  // ------------------------
+  // JSX
   // ------------------------
   return (
     <div className="app">
@@ -177,10 +217,14 @@ export default function App() {
 
           {!opponent && !deskNum && (
             <div className="button-row">
-              {!searching ? (
-                <button className="main-btn" onClick={handleFindOpponent}>マッチング開始</button>
+              {matchEnabled ? (
+                !searching ? (
+                  <button className="main-btn" onClick={handleFindOpponent}>対戦相手を探す</button>
+                ) : (
+                  <button className="main-btn" onClick={handleCancelSearch}>対戦相手を探しています…</button>
+                )
               ) : (
-                <button className="main-btn" onClick={handleCancelSearch}>キャンセル</button>
+                <span>マッチング時間外です</span>
               )}
             </div>
           )}
@@ -231,33 +275,32 @@ export default function App() {
 
           {/* マッチング操作 */}
           <div className="admin-section">
-            <h3>マッチング操作</h3>
+            <h3>マッチング操作（現在: {adminMatchStatus}）</h3>
             <div className="button-row">
-              <button
-                className="main-btn"
-                onClick={() => socketRef.current.emit("admin_enable_matching")}
-              >
-                マッチング開始
-              </button>
-              <button
-                className="main-btn"
-                onClick={() => socketRef.current.emit("admin_disable_matching")}
-              >
-                マッチング停止
-              </button>
+              <button className="main-btn" onClick={adminStartMatching}>開始</button>
+              <button className="main-btn" onClick={adminStopMatching}>停止</button>
             </div>
           </div>
 
           {/* 抽選操作 */}
           <div className="admin-section">
             <h3>抽選操作</h3>
+            <div>
+              <input
+                placeholder="抽選タイトル"
+                value={lotteryTitle}
+                onChange={(e) => setLotteryTitle(e.target.value)}
+              />
+              <input
+                type="number"
+                placeholder="当選人数"
+                value={lotteryCount}
+                min={1}
+                onChange={(e) => setLotteryCount(Number(e.target.value))}
+              />
+            </div>
             <div className="button-row">
-              <button
-                className="main-btn"
-                onClick={() => socketRef.current.emit("admin_run_lottery")}
-              >
-                抽選実行
-              </button>
+              <button className="main-btn" onClick={adminRunLottery}>抽選実行</button>
             </div>
           </div>
 
