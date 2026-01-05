@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
+import "./App.css";
 
 const SERVER_URL = "/";
 const socket = io(SERVER_URL);
