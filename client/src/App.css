@@ -1,188 +1,167 @@
-/* ================================
-   全体背景（画像は src/images/ 配下）
-   ================================ */
-body {
+/* 全体背景 */
+body, html, #root {
   margin: 0;
-  font-family: "Segoe UI", Arial, sans-serif;
-
-  /* 🔹 画像を移動しない運用に対応 */
-  background-image: url("./images/background.jpg");
+  padding: 0;
+  height: 100%;
+  background: url("./images/background.jpg") no-repeat center center fixed;
   background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-
-  color: #ffffff;
+  font-family: Arial, sans-serif;
+  color: white;
 }
 
-/* 半透明の背景レイヤー（読みやすさ確保） */
-.app-wrapper {
+/* 共通レイアウト */
+.app, .login-screen, .menu-screen, .admin-screen, .battle-screen {
   min-height: 100vh;
-  background: rgba(0, 0, 0, 0.45);
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 60px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 20px;
 }
 
-/* ================================
-   共通カードレイアウト
-   ================================ */
-.container {
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 18px;
-  padding: 22px 26px;
-  width: 90%;
-  max-width: 780px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6);
-}
-
-/* タイトル */
-h1, h2, h3 {
-  text-align: center;
-  margin-top: 6px;
-  margin-bottom: 14px;
-}
-
-/* ================================
-   ボタン（中央配置・統一デザイン）
-   ================================ */
-button {
-  padding: 10px 18px;
-  border-radius: 10px;
-  border: none;
-  background: rgba(255, 255, 255, 0.85);
-  color: #111;
-  font-weight: 600;
-  cursor: pointer;
-  margin: 6px;
-}
-
-button:hover {
-  background: #ffffff;
-  transform: scale(1.03);
-}
-
-/* ボタン中央揃え */
-.button-row {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-
-/* ================================
-   入力フォーム
-   ================================ */
-input {
-  padding: 8px;
-  border-radius: 6px;
-  border: none;
+/* ヘッダー */
+.header {
   width: 100%;
-  margin: 4px 0 10px;
-}
-
-/* ================================
-   右上 管理者ログイン（小さく表示）
-   ================================ */
-.admin-login-badge {
-  position: fixed;
-  top: 14px;
-  right: 14px;
-
-  background: rgba(0, 0, 0, 0.55);
-  padding: 10px 12px;
-  border-radius: 16px;
-
-  font-size: 13px;
-  text-align: right;
-}
-
-/* 管理者ログイン展開フォーム */
-.admin-login-panel {
-  margin-top: 6px;
-}
-
-/* ================================
-   ユーザー名表示（「〇〇さん」）
-   ================================ */
-.user-welcome {
+  padding: 15px;
+  background: rgba(0,0,0,0.7);
   text-align: center;
   font-size: 20px;
-  font-weight: 700;
-  margin-bottom: 10px;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-/* ================================
-   折りたたみセクション
-   ================================ */
-.section-box {
-  background: rgba(0, 0, 0, 0.45);
-  border-radius: 14px;
-  padding: 12px;
-  margin-top: 12px;
-}
-
-/* 折りたたみタイトル */
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  cursor: pointer;
-  font-weight: 700;
-}
-
-/* ================================
-   リスト表示
-   ================================ */
-ul {
-  padding-left: 16px;
-}
-
-li {
-  margin-bottom: 6px;
-}
-
-/* ================================
-   管理者 — 対戦卓リスト
-   ================================ */
-.table-list {
-  margin-top: 10px;
-}
-
-.table-item {
-  background: rgba(255, 255, 255, 0.12);
-  padding: 8px;
+/* ログイン画面 */
+.user-login-center {
+  background: rgba(0,0,0,0.7);
+  padding: 20px;
   border-radius: 10px;
-  margin-bottom: 8px;
-}
-
-/* 卓の中のボタン行 */
-.table-actions {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-/* ================================
-   ステータス表示
-   ================================ */
-.status {
+  margin-top: 80px;
   text-align: center;
-  margin: 10px 0;
-  font-weight: 600;
 }
 
-/* ================================
-   スマホ調整
-   ================================ */
-@media (max-width: 600px) {
-  .container {
-    width: 95%;
-    padding: 16px;
-  }
+/* 管理者ログイン右上（小さめ調整） */
+.admin-login-topright {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0,0,0,0.7);
+  padding: 6px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  z-index: 10;
+}
 
-  .admin-login-badge {
-    right: 8px;
-    top: 8px;
-  }
+.admin-login-topright input {
+  padding: 3px 5px;
+  font-size: 10px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  width: 100px;
+}
+
+.admin-login-topright button {
+  padding: 3px 6px;
+  font-size: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #b22222;
+  color: white;
+}
+
+.admin-login-topright button:hover {
+  background: #d32f2f;
+}
+
+/* 入力欄 */
+input {
+  display: block;
+  margin: 10px auto;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #444;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  width: 200px;
+}
+
+/* ボタン */
+button {
+  margin: 5px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.main-btn {
+  background: #444;
+  color: white;
+}
+
+.main-btn:hover {
+  background: #666;
+}
+
+.admin-btn {
+  background: #b22222;
+  color: white;
+}
+
+.admin-btn:hover {
+  background: #d32f2f;
+}
+
+/* 対戦履歴 */
+.history-list {
+  margin-top: 20px;
+  width: 100%;
+  max-width: 500px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.history-list table {
+  width: 100%;
+  border-collapse: collapse;
+  color: white;
+}
+
+.history-list th, .history-list td {
+  border-bottom: 1px solid #555;
+  padding: 6px;
+  text-align: center;
+}
+
+.win {
+  color: #00aaff;
+  font-weight: bold;
+}
+
+.lose {
+  color: red;
+  font-weight: bold;
+}
+
+/* 抽選当選者 */
+.lottery-list {
+  margin-top: 15px;
+  color: yellow;
+}
+
+/* 管理者画面 */
+.admin-section {
+  background: rgba(0,0,0,0.7);
+  margin: 15px 0;
+  padding: 15px;
+  border-radius: 10px;
 }
