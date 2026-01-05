@@ -1,4 +1,172 @@
-return (
+import React, { useState, useEffect, useRef } from "react";
+import { io } from "socket.io-client";
+import "./App.css";
+
+// サーバーURL（本番用）
+const SERVER_URL = "/";
+
+export default function App() {
+  const socketRef = useRef(null);
+  const heartbeatTimer = useRef(null);
+  const reconnectIntervalRef = useRef(null);
+
+  // ------------------------
+  // ステート
+  // ------------------------
+  const [user, setUser] = useState(null);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [name, setName] = useState("");
+  const [opponent, setOpponent] = useState(null);
+  const [deskNum, setDeskNum] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [searching, setSearching] = useState(false);
+
+  const [adminMode, setAdminMode] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [desks, setDesks] = useState([]);
+  const [lotteryHistory, setLotteryHistory] = useState([]);
+  const [lotteryResults, setLotteryResults] = useState([]);
+  const [lotteryTitle, setLotteryTitle] = useState("");
+  const [lotteryCount, setLotteryCount] = useState(1);
+  const [matchEnabled, setMatchEnabled] = useState(false);
+
+  // ------------------------
+  // 初回マウント時
+  // ------------------------
+  useEffect(() => {
+    const socket = io(SERVER_URL);
+    socketRef.current = socket;
+
+    // ------------------------
+    // socket ハンドラ
+    // ------------------------
+    socket.on("connect", () => {
+      console.log("✅ Connected:", socket.id);
+    });
+
+    socket.on("login_ok", (data) => {
+      console.log("✅ login_ok", data);
+      setUser({ name: data.name, id: data.id, sessionId: data.sessionId });
+      setName(data.name);
+      setLoggedIn(true);
+      setHistory(data.history || []);
+      setDeskNum(data.deskNum || null);
+      setOpponent(data.opponent || null);
+      setMatchEnabled(data.matchEnabled ?? false);
+
+      // localStorage に保存
+      try {
+        localStorage.setItem("user", JSON.stringify({
+          name: data.name,
+          sessionId: data.sessionId,
+          recentOpponents: data.recentOpponents || [],
+          history: data.history || []
+        }));
+      } catch {}
+    });
+
+    socket.on("matched", ({ opponent, deskNum }) => {
+      console.log("✅ matched", opponent, deskNum);
+      setOpponent(opponent);
+      setDeskNum(deskNum);
+      setSearching(false);
+    });
+
+    socket.on("return_to_menu_battle", () => {
+      console.log("✅ return_to_menu_battle");
+      setOpponent(null);
+      setDeskNum(null);
+      setSearching(false);
+    });
+
+    socket.on("history", (hist) => {
+      console.log("✅ history update", hist);
+      setHistory(hist);
+    });
+
+    socket.on("match_status", ({ enabled }) => setMatchEnabled(enabled));
+
+    // 管理者
+    socket.on("admin_ok", () => setAdminMode(true));
+    socket.on("admin_fail", () => alert("管理者パスワードが違います"));
+    socket.on("admin_user_list", (list) => console.log("admin_user_list", list));
+    socket.on("admin_active_matches", (list) => setDesks(list));
+    socket.on("admin_draw_result", ({ title, winners }) => {
+      setLotteryResults(prev => [...prev, { title, winners }]);
+    });
+    socket.on("admin_lottery_history", (list) => setLotteryHistory(list));
+    socket.on("update_lottery_list", ({ list }) => setLotteryResults(list));
+
+    // ------------------------
+    // heartbeat
+    // ------------------------
+    heartbeatTimer.current = setInterval(() => {
+      const userData = JSON.parse(localStorage.getItem("user") || "{}");
+      if (userData?.sessionId) socket.emit("heartbeat", { sessionId: userData.sessionId });
+    }, 30000);
+
+    // ------------------------
+    // 画面初期化時に localStorage から復元
+    // ------------------------
+    const saved = JSON.parse(localStorage.getItem("user") || "{}");
+    if (saved?.name && saved?.sessionId) {
+      setName(saved.name);
+      socket.emit("login", saved);
+    }
+
+    return () => {
+      // cleanup
+      socket.disconnect();
+      if (heartbeatTimer.current) clearInterval(heartbeatTimer.current);
+      if (reconnectIntervalRef.current) clearInterval(reconnectIntervalRef.current);
+    };
+  }, []);
+
+  // ------------------------
+  // ハンドラ
+  // ------------------------
+  const handleLogin = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return alert("ユーザー名を入力してください");
+    const saved = JSON.parse(localStorage.getItem("user") || "{}");
+    const sessionId = saved?.sessionId;
+    socketRef.current.emit("login", { name: trimmed, sessionId, recentOpponents: saved?.recentOpponents || [], history: saved?.history || [] });
+  };
+
+  const handleAdminLogin = () => {
+    if (!adminPassword) return;
+    socketRef.current.emit("admin_login", { password: adminPassword });
+  };
+
+  const handleLogout = () => {
+    if (!window.confirm("ログアウトしますか？")) return;
+    socketRef.current.emit("logout");
+    setUser(null);
+    setLoggedIn(false);
+    setOpponent(null);
+    setDeskNum(null);
+    setHistory([]);
+    setName("");
+    localStorage.removeItem("user");
+  };
+
+  const handleFindOpponent = () => {
+    if (!matchEnabled) return;
+    setSearching(true);
+    socketRef.current.emit("find_opponent");
+  };
+
+  const handleCancelSearch = () => {
+    setSearching(false);
+    socketRef.current.emit("cancel_find");
+  };
+
+  const handleWinReport = () => {
+    if (!window.confirm("あなたの勝ちで登録します。よろしいですか？")) return;
+    socketRef.current.emit("report_win_request");
+  };
+
+  return (
   <div className="app-wrapper">
     
     {/* 管理者右上 */}
