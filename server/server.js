@@ -4,6 +4,8 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
+import csvParser from "csv-parser";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,12 +26,13 @@ app.get("*", (req, res) => {
 // =======================================================
 // サーバー状態管理
 // =======================================================
-let users = {};       // sessionId -> { name, deskNum, opponent, socketId, history }
-let desks = [];       // { deskNum, player1, player2, player1SessionId, player2SessionId }
+let users = {}; // sessionId -> { name, deskNum, opponent, socketId, history, matchedWith: Set }
+let desks = []; // { deskNum, player1, player2, player1SessionId, player2SessionId }
 let nextDeskNum = 1;
 
 let matchEnabled = false;
 let lotteryHistory = []; // { title, time, winners: [{ name }] }
+
 const ADMIN_PASS = process.env.ADMIN_PASS || "admin123";
 
 // =======================================================
@@ -42,7 +45,7 @@ io.on("connection", (socket) => {
   // ユーザー操作
   // ------------------------
   socket.on("login", ({ name, sessionId }) => {
-    users[sessionId] = users[sessionId] || { name, deskNum: null, opponent: null, socketId: socket.id, history: [] };
+    users[sessionId] = users[sessionId] || { name, deskNum: null, opponent: null, socketId: socket.id, history: [], matchedWith: new Set() };
     users[sessionId].name = name;
     users[sessionId].socketId = socket.id;
 
@@ -54,6 +57,7 @@ io.on("connection", (socket) => {
       opponent: users[sessionId].opponent,
       matchEnabled,
       history: users[sessionId].history || [],
+      lotteryList: getLatestLotteryWinners(),
     });
 
     // 管理者向けデータも送信
@@ -70,8 +74,9 @@ io.on("connection", (socket) => {
     const myUser = users[mySessionId];
     if (!myUser || myUser.deskNum) return;
 
+    // 対戦相手候補：まだ卓にいない、過去に対戦していないユーザー
     const candidates = Object.entries(users)
-      .filter(([id, u]) => !u.deskNum && id !== mySessionId);
+      .filter(([id, u]) => !u.deskNum && id !== mySessionId && !myUser.matchedWith.has(id));
 
     if (candidates.length === 0) return;
 
@@ -80,9 +85,11 @@ io.on("connection", (socket) => {
     const deskNum = nextDeskNum++;
     myUser.deskNum = deskNum;
     myUser.opponent = opponent.name;
+    myUser.matchedWith.add(oppSessionId);
 
     opponent.deskNum = deskNum;
     opponent.opponent = myUser.name;
+    opponent.matchedWith.add(mySessionId);
 
     desks.push({
       deskNum,
@@ -104,11 +111,10 @@ io.on("connection", (socket) => {
     const desk = desks.find(d => d.deskNum === myUser.deskNum);
     if (!desk) return;
 
-    const opponentName = myUser.opponent;
-    const opponentEntry = Object.entries(users).find(([id, u]) => u.name === opponentName);
+    const opponentEntry = Object.entries(users).find(([id, u]) => u.name === myUser.opponent);
 
     // 勝利処理
-    myUser.history.push({ opponent: opponentName, result: "WIN" });
+    myUser.history.push({ opponent: myUser.opponent, result: "WIN" });
     if (opponentEntry) opponentEntry[1].history.push({ opponent: myUser.name, result: "LOSE" });
 
     // 対戦卓解放
@@ -144,12 +150,12 @@ io.on("connection", (socket) => {
 
   socket.on("admin_enable_matching", () => {
     matchEnabled = true;
-    io.emit("match_status_update", { enabled: matchEnabled, status: "マッチング中" });
+    io.emit("match_status_update", { enabled: matchEnabled });
   });
 
   socket.on("admin_disable_matching", () => {
     matchEnabled = false;
-    io.emit("match_status_update", { enabled: matchEnabled, status: "停止中" });
+    io.emit("match_status_update", { enabled: matchEnabled });
   });
 
   socket.on("admin_run_lottery", ({ title, count }) => {
@@ -168,6 +174,14 @@ io.on("connection", (socket) => {
     console.log("❌ Socket disconnected:", socket.id);
   });
 });
+
+// =======================================================
+// ユーティリティ
+// =======================================================
+function getLatestLotteryWinners() {
+  if (lotteryHistory.length === 0) return [];
+  return lotteryHistory[lotteryHistory.length - 1].winners;
+}
 
 // =======================================================
 // サーバー起動
