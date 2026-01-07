@@ -165,3 +165,42 @@ button {
   padding: 15px;
   border-radius: 10px;
 }
+
+/* 🔹 管理者ログイン（右下・小型表示） */
+.admin-login-bottomright {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0,0,0,0.7);
+  padding: 6px 8px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  z-index: 20;
+}
+
+.admin-login-bottomright input {
+  padding: 4px 6px;
+  font-size: 10px;
+  width: 110px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background: rgba(0,0,0,0.6);
+  color: white;
+}
+
+.admin-login-bottomright button {
+  padding: 4px 8px;
+  font-size: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #b22222;
+  color: white;
+}
+
+.admin-login-bottomright button:hover {
+  background: #d32f2f;
+}
