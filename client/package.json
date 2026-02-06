@@ -4,19 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-  "dev": "vite",
-  "build": "node node_modules/vite/bin/vite.js build"
-},
+    "dev": "vite",
+    "build": "node node_modules/vite/bin/vite.js build"
+  },
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "socket.io-client": "^4.7.5",
-    "csv-parser": "^3.0.0"
+    "socket.io-client": "^4.7.5"
   },
   "devDependencies": {
     "vite": "^5.4.0"
   },
   "engines": {
-  "node": "20.11.1"
-}
+    "node": "20.11.1"
+  }
 }
